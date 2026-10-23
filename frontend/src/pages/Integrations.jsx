@@ -10,20 +10,28 @@ import {
   Play,
   Unlink,
   Link as LinkIcon,
-  X
+  Database,
+  Bot
 } from 'lucide-react';
 import { api } from '../services/api';
+import { PageHeader } from '../components/common/PageHeader';
+import { PrimaryButton, SecondaryButton } from '../components/common/Button';
+import { Card } from '../components/common/Card';
+import { Modal, ConfirmationDialog } from '../components/common/Modal';
+import { useToast } from '../components/common/Toast';
 
 export default function Integrations() {
+  const toast = useToast();
   const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIntegration, setSelectedIntegration] = useState(null);
-  const [testResult, setTestResult] = useState(null);
-  const [testing, setTesting] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Connect form modal
+  // Form
   const [configValue, setConfigValue] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const [disconnectingProvider, setDisconnectingProvider] = useState(null);
+  const [testingProvider, setTestingProvider] = useState(null);
 
   const loadIntegrations = async () => {
     try {
@@ -31,6 +39,7 @@ export default function Integrations() {
       setIntegrations(res);
     } catch (err) {
       console.error(err);
+      toast.error('Failed to load integrations');
     } finally {
       setLoading(false);
     }
@@ -40,17 +49,15 @@ export default function Integrations() {
     loadIntegrations();
   }, []);
 
-  const handleTestConnection = async (provider) => {
-    setTesting(true);
-    setTestResult(null);
+  const handleTestPing = async (provider) => {
+    setTestingProvider(provider);
     try {
       const res = await api.testIntegration(provider);
-      setTestResult({ provider, message: res.message, latency: res.latencyMs });
+      toast.success(`${res.message} (Latency: ${res.latencyMs}ms)`);
     } catch (err) {
-      setTestResult({ provider, message: 'Connection test failed.', error: true });
+      toast.error('Ping handshake test failed');
     } finally {
-      setTesting(false);
-      setTimeout(() => setTestResult(null), 5000);
+      setTestingProvider(null);
     }
   };
 
@@ -65,202 +72,219 @@ export default function Integrations() {
         name: selectedIntegration.name,
         config: { credential: configValue },
       });
+      toast.success(`${selectedIntegration.name} connected successfully`);
       setSelectedIntegration(null);
       setConfigValue('');
       loadIntegrations();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || 'Connection failed');
     } finally {
       setConnecting(false);
     }
   };
 
-  const handleDisconnect = async (provider) => {
-    if (!window.confirm('Disconnect this integration?')) return;
+  const confirmDisconnect = async () => {
+    if (!disconnectingProvider) return;
     try {
-      await api.disconnectIntegration(provider);
+      await api.disconnectIntegration(disconnectingProvider);
+      toast.info('Integration disconnected');
       loadIntegrations();
     } catch (err) {
-      console.error(err);
+      toast.error('Failed to disconnect integration');
+    } finally {
+      setDisconnectingProvider(null);
     }
   };
 
-  const getIcon = (provider) => {
+  const getServiceIcon = (provider) => {
     switch (provider) {
-      case 'google_calendar': return <Calendar size={24} color="#EA4335" />;
-      case 'slack': return <MessageSquare size={24} color="#4A154B" />;
-      case 'github': return <GitBranch size={24} color="#24292E" />;
-      default: return <Webhook size={24} color="var(--primary-orange)" />;
+      case 'google_calendar': return <Calendar size={22} color="#EA4335" />;
+      case 'slack': return <MessageSquare size={22} color="#4A154B" />;
+      case 'github': return <GitBranch size={22} color="#24292E" />;
+      default: return <Webhook size={22} color="var(--primary-orange)" />;
     }
   };
+
+  const categories = ['All', 'Calendar & Scheduling', 'Communication', 'Developer Tools'];
+
+  const filtered = selectedCategory === 'All'
+    ? integrations
+    : integrations.filter(i => i.category === selectedCategory);
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <Layers size={26} color="var(--primary-orange)" /> Connected Integrations & MCP Tools
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginTop: '0.2rem' }}>
-          Connect third-party productivity tools, calendar synchronization, and automated webhook dispatchers.
-        </p>
+      <PageHeader
+        title="Connected Integrations & MCP Tools"
+        subtitle="Connect calendar synchronization, notification channels, code repositories, and custom webhook dispatchers."
+      />
+
+      {/* Categories Tabs */}
+      <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '1.5rem', overflowX: 'auto' }}>
+        {categories.map(cat => {
+          const isSelected = selectedCategory === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: '0.4rem 0.85rem',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                backgroundColor: isSelected ? 'var(--soft-peach)' : 'var(--surface-primary)',
+                color: isSelected ? 'var(--primary-orange)' : 'var(--secondary-text)',
+                border: isSelected ? '1px solid #F3DBB8' : '1px solid var(--border)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {cat}
+            </button>
+          );
+        })}
       </div>
 
-      {testResult && (
-        <div style={{
-          backgroundColor: testResult.error ? 'var(--error-bg)' : '#ECFDF5',
-          border: `1px solid ${testResult.error ? '#FECACA' : '#A7F3D0'}`,
-          color: testResult.error ? 'var(--error)' : '#065F46',
-          padding: '0.85rem 1.25rem',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.9rem'
-        }}>
-          <CheckCircle2 size={18} color={testResult.error ? 'var(--error)' : '#059669'} />
-          <span>{testResult.message} (Latency: {testResult.latency}ms)</span>
-        </div>
-      )}
-
       {/* Integrations Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-        {integrations.map(item => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+        {filtered.map(item => {
           const isConnected = item.status === 'CONNECTED';
           return (
-            <div
+            <Card
               key={item.provider}
-              className="card"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 padding: '1.5rem',
-                borderLeft: `4px solid ${isConnected ? '#10B981' : 'var(--border-color)'}`
+                borderLeft: `3px solid ${isConnected ? 'var(--success)' : 'var(--border)'}`
               }}
             >
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                   <div style={{
-                    width: 44,
-                    height: 44,
+                    width: 40,
+                    height: 40,
                     borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--warm-cream)',
+                    backgroundColor: 'var(--surface-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    {getIcon(item.provider)}
+                    {getServiceIcon(item.provider)}
                   </div>
 
                   <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    padding: '0.2rem 0.55rem',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                    padding: '0.15rem 0.5rem',
                     borderRadius: 'var(--radius-full)',
-                    backgroundColor: isConnected ? '#ECFDF5' : '#F3F4F6',
-                    color: isConnected ? '#059669' : '#6B7280'
+                    backgroundColor: isConnected ? 'var(--success-bg)' : 'var(--surface-secondary)',
+                    color: isConnected ? 'var(--success)' : 'var(--text-muted)'
                   }}>
                     {item.status}
                   </span>
                 </div>
 
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary-text)', marginBottom: '0.2rem' }}>
                   {item.name}
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: '0.65rem' }}>
                   {item.category}
                 </span>
 
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: '1rem' }}>
+                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--secondary-text)', lineHeight: 1.45, marginBottom: '1rem' }}>
                   {item.description}
                 </p>
 
                 {item.last_synced_at && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                    Last Handshake: {new Date(item.last_synced_at).toLocaleTimeString()}
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    Active handshake verified: {new Date(item.last_synced_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
               </div>
 
-              <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ paddingTop: '0.85rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {isConnected ? (
                   <>
-                    <button
-                      onClick={() => handleTestConnection(item.provider)}
-                      disabled={testing}
-                      className="btn-secondary"
-                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                    <SecondaryButton
+                      onClick={() => handleTestPing(item.provider)}
+                      loading={testingProvider === item.provider}
+                      style={{ fontSize: 'var(--text-xs)', padding: '0.35rem 0.75rem' }}
                     >
-                      <Play size={13} /> {testing ? 'Testing...' : 'Test Ping'}
-                    </button>
+                      <Play size={12} /> Test Ping
+                    </SecondaryButton>
                     <button
-                      onClick={() => handleDisconnect(item.provider)}
-                      style={{ fontSize: '0.8rem', color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      onClick={() => setDisconnectingProvider(item.provider)}
+                      style={{ fontSize: 'var(--text-xs)', color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                     >
-                      <Unlink size={14} /> Disconnect
+                      <Unlink size={13} /> Disconnect
                     </button>
                   </>
                 ) : (
-                  <button
+                  <PrimaryButton
                     onClick={() => {
                       setSelectedIntegration(item);
                       setConfigValue('');
                     }}
-                    className="btn-primary"
-                    style={{ width: '100%', fontSize: '0.88rem', padding: '0.5rem' }}
+                    style={{ width: '100%', fontSize: 'var(--text-sm)', padding: '0.45rem' }}
                   >
                     <LinkIcon size={14} /> Connect {item.name}
-                  </button>
+                  </PrimaryButton>
                 )}
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {/* CONNECT INTEGRATION MODAL */}
-      {selectedIntegration && (
-        <div className="modal-overlay" onClick={() => setSelectedIntegration(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Connect {selectedIntegration.name}</h2>
-              <button onClick={() => setSelectedIntegration(null)} style={{ color: 'var(--text-muted)' }}>
-                <X size={20} />
-              </button>
+      <Modal
+        isOpen={Boolean(selectedIntegration)}
+        onClose={() => setSelectedIntegration(null)}
+        title={selectedIntegration ? `Connect ${selectedIntegration.name}` : ''}
+        maxWidth={480}
+      >
+        {selectedIntegration && (
+          <form onSubmit={handleConnect} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--secondary-text)' }}>
+              {selectedIntegration.description}
+            </p>
+
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>
+                {selectedIntegration.provider === 'webhook' ? 'Webhook Target URL' : 'API Access Token / Client ID'}
+              </label>
+              <input
+                type="text"
+                placeholder={selectedIntegration.provider === 'webhook' ? 'https://api.yourdomain.com/webhook' : 'paste_token_here...'}
+                value={configValue}
+                onChange={e => setConfigValue(e.target.value)}
+                required
+              />
             </div>
 
-            <form onSubmit={handleConnect} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                {selectedIntegration.description}
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+              <SecondaryButton onClick={() => setSelectedIntegration(null)}>
+                Cancel
+              </SecondaryButton>
+              <PrimaryButton type="submit" loading={connecting}>
+                Authorize Connection
+              </PrimaryButton>
+            </div>
+          </form>
+        )}
+      </Modal>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  {selectedIntegration.provider === 'webhook' ? 'Webhook Endpoint URL' : 'API Token / OAuth Client ID'}
-                </label>
-                <input
-                  type="text"
-                  placeholder={selectedIntegration.provider === 'webhook' ? 'https://api.yourdomain.com/webhook' : 'paste_token_here...'}
-                  value={configValue}
-                  onChange={e => setConfigValue(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setSelectedIntegration(null)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={connecting} className="btn-primary">
-                  {connecting ? 'Authenticating...' : 'Authorize Connection'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* DISCONNECT CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        isOpen={Boolean(disconnectingProvider)}
+        onClose={() => setDisconnectingProvider(null)}
+        onConfirm={confirmDisconnect}
+        title="Disconnect Integration"
+        message="Are you sure you want to disconnect this integration? Automated sync and webhooks will cease until reconnected."
+        confirmText="Disconnect"
+        destructive={true}
+      />
     </div>
   );
 }

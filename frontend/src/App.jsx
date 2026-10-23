@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './components/common/Toast';
 import AppLayout from './layouts/AppLayout';
 
 import LandingPage from './pages/LandingPage';
@@ -36,35 +37,37 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Landing & Sign in */}
-          <Route path="/" element={<LandingPage />} />
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Landing & Sign in */}
+            <Route path="/" element={<LandingPage />} />
 
-          {/* Protected Application Modules */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/ai" element={<AIAssistant />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/notes" element={<Notes />} />
-            <Route path="/automation" element={<Automation />} />
-            <Route path="/integrations" element={<Integrations />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
-          </Route>
+            {/* Protected Application Modules */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/ai" element={<AIAssistant />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/notes" element={<Notes />} />
+              <Route path="/automation" element={<Automation />} />
+              <Route path="/integrations" element={<Integrations />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<Settings />} />
+            </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

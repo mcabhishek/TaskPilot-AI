@@ -1,331 +1,379 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Sparkles,
   CheckSquare,
   Calendar as CalendarIcon,
+  Sparkles,
   FolderKanban,
   FileText,
   Zap,
   Layers,
   BarChart3,
   Settings,
-  Bell,
   Plus,
   LogOut,
   Menu,
   X,
-  CheckCircle2,
-  AlertCircle
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { UserAvatar } from '../components/common/PageHeader';
+import { NotificationMenu } from '../components/common/NotificationMenu';
+import { GlobalSearch } from '../components/common/GlobalSearch';
+import { PrimaryButton, SecondaryButton } from '../components/common/Button';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'AI Assistant', path: '/ai', icon: Sparkles, badge: 'AI' },
-    { name: 'Tasks', path: '/tasks', icon: CheckSquare },
-    { name: 'Calendar', path: '/calendar', icon: CalendarIcon },
-    { name: 'Projects', path: '/projects', icon: FolderKanban },
-    { name: 'Notes', path: '/notes', icon: FileText },
-    { name: 'Automation', path: '/automation', icon: Zap },
-    { name: 'Integrations', path: '/integrations', icon: Layers },
-    { name: 'Analytics', path: '/analytics', icon: BarChart3 },
-    { name: 'Settings', path: '/settings', icon: Settings },
+  const navGroups = [
+    {
+      label: 'Main',
+      items: [
+        { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        { name: 'My Tasks', path: '/tasks', icon: CheckSquare },
+        { name: 'Calendar', path: '/calendar', icon: CalendarIcon },
+      ]
+    },
+    {
+      label: 'Intelligence',
+      items: [
+        { name: 'AI Assistant', path: '/ai', icon: Sparkles, badge: 'AI' },
+        { name: 'Notes', path: '/notes', icon: FileText },
+        { name: 'Projects', path: '/projects', icon: FolderKanban },
+      ]
+    },
+    {
+      label: 'Operations',
+      items: [
+        { name: 'Automation', path: '/automation', icon: Zap },
+        { name: 'Integrations', path: '/integrations', icon: Layers },
+        { name: 'Analytics', path: '/analytics', icon: BarChart3 },
+        { name: 'Settings', path: '/settings', icon: Settings },
+      ]
+    }
   ];
 
-  const fetchNotifications = async () => {
-    try {
-      const data = await api.getNotifications();
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount || 0);
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleMarkAllRead = async () => {
-    try {
-      await api.markAllNotificationsRead();
-      setUnreadCount(0);
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
-    } catch (err) {
-      console.error(err);
-    }
+  // Map route to page title
+  const getPageTitle = () => {
+    const p = location.pathname;
+    if (p.includes('/tasks')) return 'My Tasks';
+    if (p.includes('/calendar')) return 'Calendar';
+    if (p.includes('/ai')) return 'AI Assistant';
+    if (p.includes('/notes')) return 'Notes';
+    if (p.includes('/projects')) return 'Projects';
+    if (p.includes('/automation')) return 'Automation';
+    if (p.includes('/integrations')) return 'Integrations';
+    if (p.includes('/analytics')) return 'Analytics';
+    if (p.includes('/settings')) return 'Settings';
+    return 'Dashboard';
   };
 
   return (
     <div className="app-layout">
+      {/* Global Search Palette */}
+      <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
       {/* Desktop & Mobile Sidebar */}
-      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+        {/* Brand Header */}
+        <div style={{
+          padding: '1.15rem 1.25rem',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div style={{
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, var(--primary-orange), var(--deep-orange))',
+              backgroundColor: 'var(--primary-orange)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#FFFFFF',
-              boxShadow: '0 2px 6px rgba(249, 115, 22, 0.3)'
+              boxShadow: '0 1px 3px rgba(232, 117, 50, 0.3)'
             }}>
-              <Sparkles size={20} />
+              <Sparkles size={18} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>TaskPilot <span style={{ color: 'var(--primary-orange)' }}>AI</span></h2>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Plan Smarter. Do More.</span>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary-text)', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                TaskPilot <span style={{ color: 'var(--primary-orange)' }}>AI</span>
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--secondary-text)', fontWeight: 500 }}>
+                Plan Smarter. Do More.
+              </div>
             </div>
           </div>
-          {mobileMenuOpen && (
-            <button onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--text-secondary)' }}>
-              <X size={20} />
+
+          {mobileOpen && (
+            <button onClick={() => setMobileOpen(false)} style={{ color: 'var(--secondary-text)' }}>
+              <X size={18} />
             </button>
           )}
         </div>
 
-        {/* Quick Action */}
-        <div style={{ padding: '1rem 1.25rem 0.5rem' }}>
+        {/* Action Button */}
+        <div style={{ padding: '0.85rem 1rem 0.35rem' }}>
           <button
-            onClick={() => navigate('/ai')}
+            onClick={() => {
+              navigate('/ai');
+              setMobileOpen(false);
+            }}
             className="btn-primary"
-            style={{ width: '100%', fontSize: '0.88rem', padding: '0.55rem 0.75rem' }}
+            style={{ width: '100%', fontSize: 'var(--text-sm)', padding: '0.55rem 0.75rem' }}
           >
-            <Sparkles size={16} /> Plan Goal with AI
+            <Sparkles size={15} /> Plan with AI
           </button>
         </div>
 
         {/* Nav Links */}
-        <nav style={{ flex: 1, padding: '0.75rem', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  style={({ isActive }) => ({
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: 'var(--radius-md)',
-                    color: isActive ? 'var(--primary-orange)' : 'var(--text-secondary)',
-                    backgroundColor: isActive ? 'var(--pale-orange)' : 'transparent',
-                    fontWeight: isActive ? 600 : 500,
-                    textDecoration: 'none',
-                    fontSize: '0.92rem',
-                    transition: 'all 0.15s ease',
-                  })}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Icon size={18} />
-                    <span>{item.name}</span>
-                  </div>
-                  {item.badge && (
-                    <span style={{
-                      backgroundColor: 'var(--primary-orange)',
-                      color: '#FFF',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      padding: '0.15rem 0.45rem',
-                      borderRadius: 'var(--radius-full)'
-                    }}>
-                      {item.badge}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </div>
+        <nav style={{ flex: 1, padding: '0.65rem 0.75rem', overflowY: 'auto' }}>
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} style={{ marginBottom: '1rem' }}>
+              <div style={{
+                fontSize: '0.68rem',
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                padding: '0 0.65rem 0.35rem'
+              }}>
+                {group.label}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileOpen(false)}
+                      style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: 'var(--radius-md)',
+                        color: isActive ? 'var(--primary-orange)' : 'var(--secondary-text)',
+                        backgroundColor: isActive ? 'var(--soft-peach)' : 'transparent',
+                        fontWeight: isActive ? 600 : 500,
+                        textDecoration: 'none',
+                        fontSize: 'var(--text-sm)',
+                        transition: 'all 140ms ease',
+                      })}
+                      onMouseEnter={e => {
+                        if (!e.currentTarget.classList.contains('active')) {
+                          e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
+                          e.currentTarget.style.color = 'var(--primary-text)';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!e.currentTarget.classList.contains('active')) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.color = 'var(--secondary-text)';
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <Icon size={16} />
+                        <span>{item.name}</span>
+                      </div>
+                      {item.badge && (
+                        <span style={{
+                          backgroundColor: 'var(--primary-orange)',
+                          color: '#FFFFFF',
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: 'var(--radius-full)'
+                        }}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* User Card */}
+        {/* User Profile Card */}
         <div style={{
-          padding: '1rem',
-          borderTop: '1px solid var(--border-color)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: '#FCFAF7'
+          padding: '0.85rem 1rem',
+          borderTop: '1px solid var(--border)',
+          backgroundColor: 'var(--surface-primary)',
+          position: 'relative'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
-            <div style={{
-              width: 34,
-              height: 34,
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: 'var(--pale-orange)',
-              color: 'var(--primary-orange)',
-              fontWeight: 700,
-              fontSize: '0.9rem',
+          <div
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--border-color)'
-            }}>
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                {user?.name || 'User'}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                {user?.email || 'user@example.com'}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={logout}
-            title="Sign out"
-            style={{ color: 'var(--text-muted)', padding: '0.4rem', borderRadius: 'var(--radius-sm)' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--error)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '0.35rem',
+              borderRadius: 'var(--radius-md)',
+              transition: 'background-color 150ms ease'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            <LogOut size={16} />
-          </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
+              <UserAvatar name={user?.name} size={30} />
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--primary-text)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {user?.name || 'Alex Rivera'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--secondary-text)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {user?.email || 'demo@taskpilot.ai'}
+                </div>
+              </div>
+            </div>
+            <ChevronDown size={14} color="var(--text-muted)" />
+          </div>
+
+          {/* User popup menu */}
+          {userMenuOpen && (
+            <div style={{
+              position: 'absolute',
+              bottom: '105%',
+              left: 12,
+              right: 12,
+              backgroundColor: 'var(--surface-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--shadow-dropdown)',
+              padding: '0.35rem',
+              zIndex: 50
+            }}>
+              <button
+                onClick={() => {
+                  navigate('/settings');
+                  setUserMenuOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '0.45rem 0.65rem',
+                  fontSize: 'var(--text-sm)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--primary-text)'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Profile & Settings
+              </button>
+              <button
+                onClick={logout}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '0.45rem 0.65rem',
+                  fontSize: 'var(--text-sm)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--error)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--error-bg)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="main-content">
-        {/* Top Header */}
+        {/* Topbar */}
         <header className="topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
             <button
-              onClick={() => setMobileMenuOpen(true)}
-              style={{ display: 'none', color: 'var(--text-main)' }}
+              onClick={() => setMobileOpen(true)}
+              style={{ display: 'none', color: 'var(--primary-text)' }}
               className="mobile-toggle"
+              aria-label="Open sidebar"
             >
-              <Menu size={22} />
+              <Menu size={20} />
             </button>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              Workspace
-            </h1>
+            <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary-text)' }}>
+              {getPageTitle()}
+            </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            {/* Quick Search Shortcut Bar */}
             <button
-              onClick={() => navigate('/tasks?action=new')}
-              className="btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem' }}
+              onClick={() => setSearchOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                backgroundColor: 'var(--surface-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.35rem 0.75rem',
+                color: 'var(--secondary-text)',
+                fontSize: 'var(--text-xs)'
+              }}
+              title="Search workspace (Ctrl + K)"
             >
-              <Plus size={16} /> New Task
+              <Search size={14} />
+              <span className="search-text-label">Search anything...</span>
+              <kbd style={{
+                backgroundColor: 'var(--surface-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                padding: '0.1rem 0.35rem',
+                fontSize: '0.68rem',
+                fontFamily: 'inherit'
+              }}>
+                Ctrl K
+              </kbd>
             </button>
 
-            {/* Notification Bell */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setShowNotifMenu(!showNotifMenu)}
-                style={{
-                  position: 'relative',
-                  padding: '0.5rem',
-                  borderRadius: 'var(--radius-full)',
-                  border: '1px solid var(--border-color)',
-                  backgroundColor: '#FFFFFF',
-                  color: 'var(--text-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <Bell size={18} />
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -4,
-                    backgroundColor: 'var(--primary-orange)',
-                    color: '#FFF',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    width: 18,
-                    height: 18,
-                    borderRadius: 'var(--radius-full)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
+            {/* Quick Create Task Action */}
+            <button
+              onClick={() => navigate('/tasks?action=new')}
+              className="btn-primary"
+              style={{ fontSize: 'var(--text-xs)', padding: '0.4rem 0.85rem' }}
+            >
+              <Plus size={14} /> Create Task
+            </button>
 
-              {/* Notification Dropdown */}
-              {showNotifMenu && (
-                <div style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '115%',
-                  width: 320,
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 50,
-                  padding: '0.75rem',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>Notifications</span>
-                    {unreadCount > 0 && (
-                      <button onClick={handleMarkAllRead} style={{ fontSize: '0.75rem', color: 'var(--primary-orange)', fontWeight: 600 }}>
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {notifications.length === 0 ? (
-                      <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                        No new notifications
-                      </div>
-                    ) : (
-                      notifications.slice(0, 6).map(notif => (
-                        <div key={notif.id} style={{
-                          padding: '0.6rem',
-                          borderRadius: 'var(--radius-sm)',
-                          backgroundColor: notif.is_read ? '#FFFFFF' : 'var(--warm-cream)',
-                          border: '1px solid var(--border-subtle)',
-                          fontSize: '0.8rem'
-                        }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.15rem' }}>{notif.title}</div>
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: 1.3 }}>{notif.message}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Notifications Menu */}
+            <NotificationMenu />
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page Content Viewport */}
         <main className="page-body">
           <Outlet />
         </main>
       </div>
 
       <style>{`
-        @media (max-width: 900px) {
+        @media (max-width: 960px) {
           .mobile-toggle {
             display: inline-flex !important;
+          }
+          .search-text-label {
+            display: none;
           }
         }
       `}</style>

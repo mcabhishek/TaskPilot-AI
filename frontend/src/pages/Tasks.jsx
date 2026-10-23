@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   Circle,
   Clock,
@@ -12,29 +11,40 @@ import {
   Edit2,
   ChevronDown,
   ChevronRight,
-  Sparkles,
   AlertTriangle,
-  X
+  FolderKanban,
+  Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
+import { PageHeader } from '../components/common/PageHeader';
+import { PrimaryButton, SecondaryButton, IconButton } from '../components/common/Button';
+import { PriorityBadge, StatusBadge } from '../components/common/Badge';
+import { Card } from '../components/common/Card';
+import { SearchInput, FilterBar } from '../components/common/SearchInput';
+import { Modal, ConfirmationDialog } from '../components/common/Modal';
+import { EmptyState } from '../components/common/EmptyState';
+import { useToast } from '../components/common/Toast';
 
 export default function Tasks() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const toast = useToast();
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
-  const [priorityFilter, setPriorityFilter] = useState(searchParams.get('priority') || '');
+  // Active Tab: 'ALL' | 'TODAY' | 'UPCOMING' | 'IN_PROGRESS' | 'DONE'
+  const [activeTab, setActiveTab] = useState('ALL');
+
+  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [overdueOnly, setOverdueOnly] = useState(searchParams.get('overdue') === 'true');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
 
   // Expanded subtasks
   const [expandedTasks, setExpandedTasks] = useState(new Set());
 
-  // Task Modal state
+  // Task Modal (Create / Edit)
   const [isModalOpen, setIsModalOpen] = useState(searchParams.get('action') === 'new');
   const [editingTask, setEditingTask] = useState(null);
   const [formTitle, setFormTitle] = useState('');
@@ -46,21 +56,24 @@ export default function Tasks() {
   const [formDuration, setFormDuration] = useState('45');
   const [formSubtasks, setFormSubtasks] = useState(['']);
 
+  // Delete dialog
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
+
   const loadData = async () => {
     try {
       const [tasksRes, projectsRes] = await Promise.all([
         api.getTasks({
-          status: statusFilter,
-          priority: priorityFilter,
           search: searchQuery,
-          overdue: overdueOnly ? 'true' : ''
+          priority: priorityFilter,
+          projectId: projectFilter,
         }),
         api.getProjects()
       ]);
       setTasks(tasksRes);
       setProjects(projectsRes);
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      console.error(err);
+      toast.error('Failed to load tasks');
     } finally {
       setLoading(false);
     }
@@ -68,7 +81,20 @@ export default function Tasks() {
 
   useEffect(() => {
     loadData();
-  }, [statusFilter, priorityFilter, searchQuery, overdueOnly]);
+  }, [searchQuery, priorityFilter, projectFilter]);
+
+  // Tab Filtering
+  const filteredTasks = tasks.filter(task => {
+    const isDone = task.status === 'DONE';
+    const isToday = task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString();
+    const isUpcoming = task.due_date && new Date(task.due_date) > new Date() && !isDone;
+
+    if (activeTab === 'TODAY') return isToday && !isDone;
+    if (activeTab === 'UPCOMING') return isUpcoming;
+    if (activeTab === 'IN_PROGRESS') return task.status === 'IN_PROGRESS';
+    if (activeTab === 'DONE') return isDone;
+    return true; // 'ALL'
+  });
 
   const toggleSubtasksView = async (taskId) => {
     const next = new Set(expandedTasks);
@@ -78,7 +104,6 @@ export default function Tasks() {
     } else {
       next.add(taskId);
       setExpandedTasks(next);
-      // Fetch full task with subtasks if needed
       try {
         const details = await api.getTaskById(taskId);
         setTasks(prev => prev.map(t => (t.id === taskId ? details : t)));
@@ -91,22 +116,23 @@ export default function Tasks() {
   const handleToggleStatus = async (task) => {
     const nextStatus = task.status === 'DONE' ? 'TODO' : 'DONE';
     if (nextStatus === 'DONE') {
-      try {
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-      } catch {}
+      confetti({ particleCount: 50, spread: 60 });
+      toast.success(`Completed "${task.title}"`);
+    } else {
+      toast.info(`Reopened "${task.title}"`);
     }
 
     try {
       await api.updateTask(task.id, { status: nextStatus });
       setTasks(prev => prev.map(t => (t.id === task.id ? { ...t, status: nextStatus } : t)));
     } catch (err) {
-      console.error(err);
+      toast.error('Failed to update task status');
     }
   };
 
   const handleToggleSubtask = async (taskId, subtask) => {
+    const nextCompleted = subtask.is_completed ? 0 : 1;
     try {
-      const nextCompleted = subtask.is_completed ? 0 : 1;
       await api.updateSubtask(taskId, subtask.id, { is_completed: nextCompleted });
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId || !t.subtasks) return t;
@@ -114,17 +140,20 @@ export default function Tasks() {
         return { ...t, subtasks: updatedSubs };
       }));
     } catch (err) {
-      console.error(err);
+      toast.error('Failed to update subtask');
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
+  const confirmDeleteTask = async () => {
+    if (!deletingTaskId) return;
     try {
-      await api.deleteTask(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      await api.deleteTask(deletingTaskId);
+      setTasks(prev => prev.filter(t => t.id !== deletingTaskId));
+      toast.success('Task removed');
     } catch (err) {
-      console.error(err);
+      toast.error('Failed to delete task');
+    } finally {
+      setDeletingTaskId(null);
     }
   };
 
@@ -168,6 +197,7 @@ export default function Tasks() {
           project_id: formProjectId || null,
           estimated_duration: Number(formDuration) || null,
         });
+        toast.success('Task updated');
       } else {
         const validSubs = formSubtasks.filter(s => s.trim().length > 0).map(title => ({ title }));
         await api.createTask({
@@ -180,55 +210,93 @@ export default function Tasks() {
           estimated_duration: Number(formDuration) || null,
           subtasks: validSubs,
         });
+        toast.success('Task created');
       }
       setIsModalOpen(false);
       loadData();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message || 'Error saving task');
     }
   };
 
+  const tabs = [
+    { id: 'ALL', label: 'All Tasks', count: tasks.length },
+    { id: 'TODAY', label: 'Today', count: tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === new Date().toDateString() && t.status !== 'DONE').length },
+    { id: 'UPCOMING', label: 'Upcoming', count: tasks.filter(t => t.due_date && new Date(t.due_date) > new Date() && t.status !== 'DONE').length },
+    { id: 'IN_PROGRESS', label: 'In Progress', count: tasks.filter(t => t.status === 'IN_PROGRESS').length },
+    { id: 'DONE', label: 'Completed', count: tasks.filter(t => t.status === 'DONE').length },
+  ];
+
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
-            Task Management
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginTop: '0.2rem' }}>
-            Organize, prioritize, and track all your actionable deliverables.
-          </p>
-        </div>
+      <PageHeader
+        title="My Tasks"
+        subtitle="Organize, prioritize, and track all deliverables across your workspace."
+        actions={
+          <PrimaryButton onClick={openCreateModal} icon={Plus}>
+            New Task
+          </PrimaryButton>
+        }
+      />
 
-        <button onClick={openCreateModal} className="btn-primary">
-          <Plus size={18} /> Create Task
-        </button>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: '1.25rem',
+        overflowX: 'auto'
+      }}>
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '0.65rem 0.95rem',
+                fontSize: 'var(--text-sm)',
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? 'var(--primary-orange)' : 'var(--secondary-text)',
+                borderBottom: isActive ? '2px solid var(--primary-orange)' : '2px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <span>{tab.label}</span>
+              <span style={{
+                fontSize: 'var(--text-xs)',
+                padding: '0.1rem 0.4rem',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: isActive ? 'var(--soft-peach)' : 'var(--surface-secondary)',
+                color: isActive ? 'var(--primary-orange)' : 'var(--text-muted)'
+              }}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <input
-            type="text"
-            placeholder="Search tasks by title or details..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: '2.25rem' }}
-          />
-          <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
-        </div>
+      <FilterBar>
+        <SearchInput
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          onClear={() => setSearchQuery('')}
+          placeholder="Search deliverables by name or description..."
+          style={{ flex: 1, minWidth: 200, maxWidth: 380 }}
+        />
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto', minWidth: 120 }}>
-            <option value="">All Statuses</option>
-            <option value="TODO">To Do</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="BLOCKED">Blocked</option>
-            <option value="DONE">Done</option>
-          </select>
-
-          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} style={{ width: 'auto', minWidth: 120 }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+          <select
+            value={priorityFilter}
+            onChange={e => setPriorityFilter(e.target.value)}
+            style={{ width: 'auto', minWidth: 120, fontSize: 'var(--text-xs)' }}
+          >
             <option value="">All Priorities</option>
             <option value="URGENT">Urgent</option>
             <option value="HIGH">High</option>
@@ -236,99 +304,82 @@ export default function Tasks() {
             <option value="LOW">Low</option>
           </select>
 
-          <button
-            onClick={() => setOverdueOnly(!overdueOnly)}
-            style={{
-              padding: '0.6rem 0.9rem',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              backgroundColor: overdueOnly ? '#FEE2E2' : '#FFFFFF',
-              color: overdueOnly ? '#DC2626' : 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem'
-            }}
+          <select
+            value={projectFilter}
+            onChange={e => setProjectFilter(e.target.value)}
+            style={{ width: 'auto', minWidth: 140, fontSize: 'var(--text-xs)' }}
           >
-            <AlertTriangle size={15} /> Overdue Only
-          </button>
+            <option value="">All Projects</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
-      </div>
+      </FilterBar>
 
-      {/* Tasks List */}
+      {/* Task List */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading tasks...</div>
-      ) : tasks.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--pale-orange)', color: 'var(--primary-orange)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-            <CheckCircle2 size={24} />
-          </div>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.25rem' }}>No tasks found</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            {searchQuery || statusFilter || priorityFilter ? 'Try clearing your filters to see more tasks.' : 'Create your first task or use AI to generate a complete plan.'}
-          </p>
-          <button onClick={openCreateModal} className="btn-primary" style={{ display: 'inline-flex' }}>
-            <Plus size={16} /> Create Task
-          </button>
-        </div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading deliverables...</div>
+      ) : filteredTasks.length === 0 ? (
+        <EmptyState
+          icon={CheckSquare}
+          title={searchQuery || priorityFilter || projectFilter ? 'No matching tasks' : 'No tasks in this view'}
+          description={searchQuery || priorityFilter ? 'Try clearing your active filters to display more deliverables.' : 'Create your first task or use the AI Goal Planner to build a complete roadmap.'}
+          actionText="Create new task"
+          onAction={openCreateModal}
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {tasks.map(task => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {filteredTasks.map(task => {
             const isDone = task.status === 'DONE';
             const isExpanded = expandedTasks.has(task.id);
             const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !isDone;
 
             return (
-              <div
+              <Card
                 key={task.id}
-                className="card"
                 style={{
-                  padding: '1rem 1.25rem',
-                  backgroundColor: isDone ? '#FAF9F6' : '#FFFFFF',
-                  opacity: isDone ? 0.85 : 1,
-                  borderLeft: isOverdue ? '4px solid #EF4444' : (task.project_color ? `4px solid ${task.project_color}` : '1px solid var(--border-color)')
+                  padding: '0.95rem 1.15rem',
+                  backgroundColor: isDone ? 'var(--surface-secondary)' : 'var(--surface-primary)',
+                  borderLeft: isOverdue ? '3px solid var(--error)' : (task.project_color ? `3px solid ${task.project_color}` : '1px solid var(--border)'),
+                  opacity: isDone ? 0.8 : 1
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', flex: 1 }}>
-                    {/* Status Toggle Checkbox */}
+                  
+                  {/* Left: Checkbox + Content */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', flex: 1, overflow: 'hidden' }}>
                     <button
                       onClick={() => handleToggleStatus(task)}
-                      style={{ marginTop: 2, color: isDone ? '#059669' : 'var(--text-muted)' }}
-                      title={isDone ? 'Mark as TODO' : 'Mark as DONE'}
+                      style={{ marginTop: 2, color: isDone ? 'var(--success)' : 'var(--text-muted)' }}
+                      title={isDone ? 'Mark as to do' : 'Mark as done'}
                     >
-                      {isDone ? <CheckCircle2 size={20} color="#059669" /> : <Circle size={20} />}
+                      {isDone ? <CheckCircle2 size={19} color="var(--success)" /> : <Circle size={19} />}
                     </button>
 
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                         <span style={{
-                          fontWeight: 700,
-                          fontSize: '0.98rem',
-                          color: isDone ? 'var(--text-muted)' : 'var(--text-main)',
+                          fontWeight: 600,
+                          fontSize: 'var(--text-base)',
+                          color: isDone ? 'var(--text-muted)' : 'var(--primary-text)',
                           textDecoration: isDone ? 'line-through' : 'none'
                         }}>
                           {task.title}
                         </span>
 
-                        <span className={`badge badge-${task.priority.toLowerCase()}`}>
-                          {task.priority}
-                        </span>
-
-                        <span className={`badge badge-${task.status.toLowerCase().replace('_', '')}`}>
-                          {task.status.replace('_', ' ')}
-                        </span>
+                        <PriorityBadge priority={task.priority} />
+                        <StatusBadge status={task.status} />
 
                         {task.project_name && (
                           <span style={{
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 500,
                             padding: '0.15rem 0.5rem',
-                            borderRadius: 'var(--radius-full)',
-                            backgroundColor: 'var(--warm-cream)',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: 'var(--surface-secondary)',
                             color: task.project_color || 'var(--primary-orange)',
-                            border: '1px solid var(--border-color)'
+                            border: '1px solid var(--border-subtle)'
                           }}>
                             {task.project_name}
                           </span>
@@ -336,33 +387,34 @@ export default function Tasks() {
                       </div>
 
                       {task.description && (
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--secondary-text)', marginTop: '0.3rem', lineHeight: 1.45 }}>
                           {task.description}
                         </p>
                       )}
 
                       {/* Metadata Row */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.6rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.55rem', fontSize: 'var(--text-xs)', color: 'var(--secondary-text)', flexWrap: 'wrap' }}>
                         {task.due_date && (
                           <span style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.3rem',
-                            color: isOverdue ? '#DC2626' : 'var(--text-secondary)',
-                            fontWeight: isOverdue ? 700 : 500
+                            color: isOverdue ? 'var(--error)' : 'var(--secondary-text)',
+                            fontWeight: isOverdue ? 600 : 400
                           }}>
-                            <CalendarIcon size={14} /> Due: {new Date(task.due_date).toLocaleDateString()}
-                            {isOverdue && ' (Overdue!)'}
+                            <CalendarIcon size={13} />
+                            Due: {new Date(task.due_date).toLocaleDateString()}
+                            {isOverdue && ' (Overdue)'}
                           </span>
                         )}
 
                         {task.estimated_duration && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Clock size={14} /> {task.estimated_duration} mins
+                            <Clock size={13} /> {task.estimated_duration} mins
                           </span>
                         )}
 
-                        {/* Subtasks Count Button */}
+                        {/* Subtasks Accordion Button */}
                         {(task.subtask_count > 0 || (task.subtasks && task.subtasks.length > 0)) && (
                           <button
                             onClick={() => toggleSubtasksView(task.id)}
@@ -371,10 +423,11 @@ export default function Tasks() {
                               alignItems: 'center',
                               gap: '0.3rem',
                               color: 'var(--primary-orange)',
-                              fontWeight: 600
+                              fontWeight: 600,
+                              fontSize: 'var(--text-xs)'
                             }}
                           >
-                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                             {task.completed_subtask_count || 0}/{task.subtask_count || task.subtasks?.length || 0} subtasks
                           </button>
                         )}
@@ -383,50 +436,44 @@ export default function Tasks() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <button
-                      onClick={() => openEditModal(task)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <IconButton
+                      icon={Edit2}
                       title="Edit task"
-                      style={{ color: 'var(--text-muted)', padding: '0.4rem' }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
+                      size={15}
+                      onClick={() => openEditModal(task)}
+                    />
+                    <IconButton
+                      icon={Trash2}
                       title="Delete task"
-                      style={{ color: 'var(--text-muted)', padding: '0.4rem' }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--error)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      size={15}
+                      onClick={() => setDeletingTaskId(task.id)}
+                    />
                   </div>
                 </div>
 
-                {/* Subtasks Accordion */}
+                {/* Subtasks Expandable Checklist */}
                 {isExpanded && task.subtasks && (
                   <div style={{
-                    marginTop: '0.85rem',
-                    paddingTop: '0.85rem',
-                    borderTop: '1px solid var(--border-color)',
-                    paddingLeft: '2.5rem',
+                    marginTop: '0.75rem',
+                    paddingTop: '0.75rem',
+                    borderTop: '1px solid var(--border-subtle)',
+                    paddingLeft: '2rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.45rem'
+                    gap: '0.4rem'
                   }}>
                     {task.subtasks.map(sub => (
-                      <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                         <button
                           onClick={() => handleToggleSubtask(task.id, sub)}
-                          style={{ color: sub.is_completed ? '#059669' : 'var(--text-muted)' }}
+                          style={{ color: sub.is_completed ? 'var(--success)' : 'var(--text-muted)' }}
                         >
-                          {sub.is_completed ? <CheckCircle2 size={16} color="#059669" /> : <Circle size={16} />}
+                          {sub.is_completed ? <CheckCircle2 size={15} color="var(--success)" /> : <Circle size={15} />}
                         </button>
                         <span style={{
-                          fontSize: '0.85rem',
-                          color: sub.is_completed ? 'var(--text-muted)' : 'var(--text-main)',
+                          fontSize: 'var(--text-sm)',
+                          color: sub.is_completed ? 'var(--text-muted)' : 'var(--primary-text)',
                           textDecoration: sub.is_completed ? 'line-through' : 'none'
                         }}>
                           {sub.title}
@@ -435,140 +482,142 @@ export default function Tasks() {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
       )}
 
       {/* CREATE / EDIT TASK MODAL */}
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-                {editingTask ? 'Edit Task' : 'Create New Task'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} style={{ color: 'var(--text-muted)' }}>
-                <X size={20} />
-              </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingTask ? 'Edit Deliverable' : 'Create Deliverable'}
+      >
+        <form onSubmit={handleSaveTask} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Title *</label>
+            <input
+              type="text"
+              placeholder="e.g. Implement schema migration for analytics"
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Description</label>
+            <textarea
+              rows={3}
+              placeholder="Context, specifications, or reference links..."
+              value={formDesc}
+              onChange={e => setFormDesc(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Priority</label>
+              <select value={formPriority} onChange={e => setFormPriority(e.target.value)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
             </div>
 
-            <form onSubmit={handleSaveTask} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Title *</label>
-                <input
-                  type="text"
-                  placeholder="Task title..."
-                  value={formTitle}
-                  onChange={e => setFormTitle(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Description</label>
-                <textarea
-                  rows={3}
-                  placeholder="Additional context or notes..."
-                  value={formDesc}
-                  onChange={e => setFormDesc(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Priority</label>
-                  <select value={formPriority} onChange={e => setFormPriority(e.target.value)}>
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Status</label>
-                  <select value={formStatus} onChange={e => setFormStatus(e.target.value)}>
-                    <option value="TODO">To Do</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="BLOCKED">Blocked</option>
-                    <option value="DONE">Done</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Due Date</label>
-                  <input
-                    type="date"
-                    value={formDueDate}
-                    onChange={e => setFormDueDate(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Est. Duration (Mins)</label>
-                  <input
-                    type="number"
-                    value={formDuration}
-                    onChange={e => setFormDuration(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Project</label>
-                <select value={formProjectId} onChange={e => setFormProjectId(e.target.value)}>
-                  <option value="">No Project (Standalone)</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Subtasks on create */}
-              {!editingTask && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.35rem' }}>Subtasks</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {formSubtasks.map((sub, idx) => (
-                      <input
-                        key={idx}
-                        type="text"
-                        placeholder={`Subtask ${idx + 1}...`}
-                        value={sub}
-                        onChange={e => {
-                          const updated = [...formSubtasks];
-                          updated[idx] = e.target.value;
-                          setFormSubtasks(updated);
-                        }}
-                      />
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setFormSubtasks([...formSubtasks, ''])}
-                      style={{ fontSize: '0.8rem', color: 'var(--primary-orange)', fontWeight: 600, textAlign: 'left', alignSelf: 'flex-start' }}
-                    >
-                      + Add another subtask
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  {editingTask ? 'Save Changes' : 'Create Task'}
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Status</label>
+              <select value={formStatus} onChange={e => setFormStatus(e.target.value)}>
+                <option value="TODO">To Do</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="BLOCKED">Blocked</option>
+                <option value="DONE">Done</option>
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Due Date</label>
+              <input
+                type="date"
+                value={formDueDate}
+                onChange={e => setFormDueDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Est. Duration (mins)</label>
+              <input
+                type="number"
+                value={formDuration}
+                onChange={e => setFormDuration(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Project</label>
+            <select value={formProjectId} onChange={e => setFormProjectId(e.target.value)}>
+              <option value="">No Project (Standalone Task)</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subtasks on Creation */}
+          {!editingTask && (
+            <div>
+              <label className="text-label" style={{ display: 'block', marginBottom: '0.35rem' }}>Subtasks checklist</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {formSubtasks.map((sub, idx) => (
+                  <input
+                    key={idx}
+                    type="text"
+                    placeholder={`Step ${idx + 1}...`}
+                    value={sub}
+                    onChange={e => {
+                      const updated = [...formSubtasks];
+                      updated[idx] = e.target.value;
+                      setFormSubtasks(updated);
+                    }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFormSubtasks([...formSubtasks, ''])}
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-orange)', fontWeight: 600, textAlign: 'left', alignSelf: 'flex-start', marginTop: '0.2rem' }}
+                >
+                  + Add another subtask
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+            <SecondaryButton onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton type="submit">
+              {editingTask ? 'Save Changes' : 'Create Task'}
+            </PrimaryButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Confirmation Dialog for Task Deletion */}
+      <ConfirmationDialog
+        isOpen={Boolean(deletingTaskId)}
+        onClose={() => setDeletingTaskId(null)}
+        onConfirm={confirmDeleteTask}
+        title="Delete Deliverable"
+        message="Are you sure you want to permanently delete this task? This action cannot be undone."
+        confirmText="Delete"
+        destructive={true}
+      />
     </div>
   );
 }
