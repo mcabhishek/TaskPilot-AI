@@ -16,7 +16,7 @@
     "test:security": "cd backend && npx tsx --test src/tests/security_tests.ts",
     "test:reminders": "cd backend && npx tsx --test src/tests/reminder_tests.ts",
     "test:mcp": "cd backend && npx tsx src/mcp/test_mcp_e2e.ts",
-    "test:flows": "powershell -ExecutionPolicy Bypass -File ./tests/test_flows.ps1",
+    "test:flows": "node ./tests/test_flows.js",
     "test": "npm run test:unit && npm run test:security && npm run test:reminders && npm run test:mcp && npm run test:flows",
     "test:all": "npm run test:unit && npm run test:security && npm run test:reminders && npm run test:mcp && npm run test:flows",
     "db:reset": "cd backend && npx tsx src/db/reset.ts"
