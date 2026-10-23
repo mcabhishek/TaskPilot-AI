@@ -32,9 +32,9 @@ mcpClientRouter.get('/status', async (req: AuthenticatedRequest, res: Response) 
     res.json({
       connected: true,
       protocol: 'Model Context Protocol (MCP)',
-      specification: '2025-11-25 / SDK 1.32.1',
-      transport: 'Streamable HTTP (Server-Sent Events)',
-      serverEndpoint: '/mcp/sse',
+      specification: 'Streamable HTTP Transport Specification / SDK 1.32.1',
+      transport: 'Streamable HTTP',
+      serverEndpoint: '/mcp',
       toolCount: tools.length,
       tools: tools.map((t: any) => ({
         name: t.name,
@@ -47,9 +47,9 @@ mcpClientRouter.get('/status', async (req: AuthenticatedRequest, res: Response) 
     console.error('MCP client status check failed:', err);
     res.status(502).json({
       connected: false,
-      error: err.message || 'Failed to establish Streamable HTTP SSE session with MCP server',
-      transport: 'Streamable HTTP (Server-Sent Events)',
-      serverEndpoint: '/mcp/sse',
+      error: err.message || 'Failed to establish Streamable HTTP session with MCP server',
+      transport: 'Streamable HTTP',
+      serverEndpoint: '/mcp',
     });
   }
 });

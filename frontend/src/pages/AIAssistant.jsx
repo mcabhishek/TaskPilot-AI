@@ -52,8 +52,8 @@ export default function AIAssistant() {
   const [mcpStatus, setMcpStatus] = useState({
     connected: false,
     protocol: 'Model Context Protocol (MCP)',
-    specification: '2025-11-25 / SDK 1.32.1',
-    transport: 'Streamable HTTP (Server-Sent Events)',
+    specification: 'Streamable HTTP Transport Specification / SDK 1.32.1',
+    transport: 'Streamable HTTP',
     toolCount: 10,
     tools: [],
   });

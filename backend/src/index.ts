@@ -3,6 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { initDatabase } from './db/database.js';
 import { seedDemoData } from './db/seed.js';
+import {
+  getJwtSecret,
+  getAllowedOrigins,
+  securityHeadersMiddleware,
+  createRateLimiter,
+} from './config/security.js';
 import { authRouter } from './modules/auth/authRoutes.js';
 import { dashboardRouter } from './modules/dashboard/dashboardRoutes.js';
 import { tasksRouter } from './modules/tasks/tasksRoutes.js';
@@ -26,18 +32,39 @@ import { RemindersService } from './modules/reminders/remindersService.js';
 
 dotenv.config();
 
+// Enforce production security check: fails immediately at startup if JWT secret is missing or insecure
+getJwtSecret();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+// Apply security headers (X-Content-Type-Options, X-Frame-Options, XSS, Referrer-Policy)
+app.use(securityHeadersMiddleware);
 
-app.use(express.json());
+// Configurable CORS allowlist: permits allowed frontend origins without wildcard credentials vulnerability
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. CLI tools, curl, native agents, tests)
+      if (!origin) return callback(null, true);
 
-// Initialize database schema and seed initial data
+      const allowed = getAllowedOrigins();
+      if (allowed.includes(origin) || allowed.includes('*')) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS policy violation: Origin '${origin}' is not in the allowed origins list.`));
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'mcp-session-id', 'last-event-id'],
+    exposedHeaders: ['mcp-session-id', 'Retry-After'],
+    credentials: true,
+  })
+);
+
+// Body parser with 1MB payload size limit to prevent denial of service attacks
+app.use(express.json({ limit: '1mb' }));
+
+// Initialize database schema and seed demo records if needed
 initDatabase();
 seedDemoData();
 
@@ -51,8 +78,15 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Auth rate limiter: 100 requests per 15 minutes for registration and login
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 100,
+  message: 'Too many authentication attempts. Please try again later.',
+});
+
 // API Routes
-app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/auth', authRateLimiter, authRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/projects', projectsRouter);
@@ -83,14 +117,19 @@ app.use('/oauth', oauthRouter);
 
 // Centralized error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled server error:', err);
-  res.status(500).json({ error: 'Internal server error occurred.' });
+  console.error('Unhandled server error:', err.message || err);
+  const isProd = process.env.NODE_ENV === 'production';
+  const statusCode = err.status || (err.message && err.message.includes('CORS') ? 403 : 500);
+  res.status(statusCode).json({
+    error: isProd ? 'Internal server error occurred.' : (err.message || 'Internal server error occurred.'),
+  });
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 TaskPilot AI Backend listening on http://localhost:${PORT}`);
-  
+  console.log(`🤖 MCP Server Streamable HTTP endpoint: http://localhost:${PORT}/mcp`);
+
   // Background periodic scanner: runs every 15 seconds to deliver due reminders idempotently
   setInterval(() => {
     try {

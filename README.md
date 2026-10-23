@@ -46,25 +46,28 @@ Built with a warm, elegant design system matching the established TaskPilot AI p
 
 ## 🤖 Official Model Context Protocol (MCP) Server
 
-TaskPilot AI implements an official MCP server using `@modelcontextprotocol/sdk` conforming to the 2025-11-25 / 2024-11-05 specifications.
+TaskPilot AI implements an official MCP server using `@modelcontextprotocol/sdk` (v1.32.1) conforming to the official **Streamable HTTP Transport Specification** and Stdio specification.
 
 ### Supported Transports & Endpoints
 
-1. **Streamable HTTP (Server-Sent Events)**:
-   - **SSE Stream**: `GET /mcp/sse?token=<jwt>` (or `Authorization: Bearer <token>`)
-   - **JSON-RPC Messages**: `POST /mcp/messages?sessionId={id}`
+1. **Official Streamable HTTP Transport**:
+   - **Primary Endpoint**: `/mcp`
+   - **HTTP POST**: Handles initialization lifecycle (`isInitializeRequest`) and subsequent JSON-RPC message calls. Enforces session validation via `mcp-session-id` header.
+   - **HTTP GET**: Opens an active Server-Sent Events (SSE) stream for notifications and server requests for the initialized session (`mcp-session-id`).
+   - **HTTP DELETE**: Gracefully terminates the session and purges transport resources according to the MCP specification.
    - **Service Metadata**: `GET /mcp/info`
 2. **Standard I/O (Stdio Transport)**:
    - Executable: `backend/src/mcp/stdio.ts`
    - Run: `npx tsx src/mcp/stdio.ts` (with `TASKPILOT_USER_EMAIL` or `TASKPILOT_API_TOKEN`)
 3. **Official MCP Client Service (Backend-for-Frontend)**:
+   - Uses `StreamableHTTPClientTransport` from `@modelcontextprotocol/sdk/client/streamableHttp.js`.
    - `GET /api/v1/mcp-client/status`: Inspects active Streamable HTTP connection and tool discovery.
-   - `POST /api/v1/mcp-client/call-tool`: Direct JSON-RPC `tools/call` execution over SSE.
-   - `POST /api/v1/mcp-client/assistant`: Conversational assistant routing requests through the official MCP client.
+   - `POST /api/v1/mcp-client/call-tool`: Direct JSON-RPC `tools/call` execution over Streamable HTTP.
+   - `POST /api/v1/mcp-client/assistant`: Conversational assistant executing requests strictly through the official MCP client.
 4. **OAuth 2.1 RFC 8414 Authorization Server (Alexa+ Interoperability)**:
    - Metadata: `GET /.well-known/oauth-authorization-server`
-   - Authorization: `GET /oauth/authorize` (supports `code_challenge`, `code_challenge_method=S256`, `resource`)
-   - Token Exchange: `POST /oauth/token` (verifies `code_verifier` with SHA-256 base64url)
+   - Authorization: `GET /oauth/authorize` (supports `code_challenge`, `code_challenge_method=S256`, client registry, user authentication)
+   - Token Exchange: `POST /oauth/token` (single-use authorization code, verifies `code_verifier` with SHA-256 base64url, rate-limited)
 
 ---
 
@@ -118,8 +121,9 @@ npm test
 | Command | Suite Description | Status |
 | :--- | :--- | :--- |
 | `npm run test:unit` | Task bounds, rescheduling, date filtering, subtasks, tenant isolation, and MCP server instantiation | **PASS (9/9 tests)** |
+| `npm run test:security` | Cryptographic JWT signing with HS256, issuer validation, tampering rejection, and CORS allowlist | **PASS (5/5 tests)** |
 | `npm run test:reminders` | Smart reminders lifecycle, validation, auto task linking, scheduler idempotency, daily briefing, and assistant | **PASS (10/10 tests)** |
-| `npm run test:mcp` | Connects official MCP Client via Streamable HTTP SSE, discovers all 10 tools, executes every tool, verifies cross-user isolation, multi-turn assistant confirmation, and OAuth 2.1 PKCE S256 | **PASS (16/16 steps, 100%)** |
+| `npm run test:mcp` | Connects official MCP Client via Streamable HTTP Transport, discovers all 10 tools, executes every tool, verifies cross-user isolation, multi-turn assistant confirmation, unauthenticated OAuth rejection, open redirect prevention, and PKCE S256 | **PASS (16/16 steps, 100%)** |
 | `npm run test:flows` | End-to-end API verification of auth, AI planner, workflows, and analytics | **PASS (8/8 flows)** |
 | `npm run build` | Compiles backend TypeScript (`tsc`) and builds frontend production bundle (`vite build`) | **PASS (0 errors)** |
 | `npm run lint` | Runs frontend fast linter (`oxlint`) | **PASS (0 errors)** |

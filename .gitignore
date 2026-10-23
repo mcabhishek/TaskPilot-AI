@@ -7,4 +7,9 @@ backend/data/
 *.db-wal
 *.log
 .env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 .DS_Store

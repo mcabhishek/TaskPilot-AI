@@ -1,5 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { db } from '../db/database.js';
 
 const PORT = process.env.PORT || 5000;
@@ -7,7 +7,7 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 interface UserClientSession {
   client: Client;
-  transport: SSEClientTransport;
+  transport: StreamableHTTPClientTransport;
   userId: string;
   connectedAt: number;
   lastActive: number;
@@ -18,11 +18,11 @@ const clientSessions = new Map<string, UserClientSession>();
 
 /**
  * Official MCP Client Manager.
- * Communicates with the TaskPilot MCP Server strictly over Streamable HTTP (SSE Transport).
+ * Communicates with the TaskPilot MCP Server strictly over official Streamable HTTP transport.
  */
 export class McpClientManager {
   /**
-   * Get or create a connected official MCP Client over Streamable HTTP SSE.
+   * Get or create a connected official MCP Client over Streamable HTTP.
    */
   static async getClient(token: string, userId: string): Promise<Client> {
     const existing = clientSessions.get(userId);
@@ -31,10 +31,17 @@ export class McpClientManager {
       return existing.client;
     }
 
-    const sseUrl = new URL(`${BASE_URL}/mcp/sse`);
-    sseUrl.searchParams.set('token', token);
+    const mcpUrl = new URL(`${BASE_URL}/mcp`);
+    mcpUrl.searchParams.set('token', token);
 
-    const transport = new SSEClientTransport(sseUrl);
+    const transport = new StreamableHTTPClientTransport(mcpUrl, {
+      requestInit: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
     const client = new Client(
       {
         name: 'TaskPilot-Alexa-Simulator-Client',
@@ -92,7 +99,7 @@ export class McpClientManager {
       return {
         toolName: name,
         arguments: args,
-        transport: 'streamable-http-sse',
+        transport: 'streamable-http',
         durationMs,
         isError: !!response.isError,
         rawResponse: response,
@@ -103,7 +110,7 @@ export class McpClientManager {
       return {
         toolName: name,
         arguments: args,
-        transport: 'streamable-http-sse',
+        transport: 'streamable-http',
         durationMs,
         isError: true,
         error: err.message || 'MCP tool execution failed',

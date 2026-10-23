@@ -13,11 +13,12 @@
     "build": "npm run build:backend && npm run build:frontend",
     "lint": "cd frontend && npm run lint",
     "test:unit": "cd backend && npx tsx --test src/tests/unit_tests.ts",
+    "test:security": "cd backend && npx tsx --test src/tests/security_tests.ts",
     "test:reminders": "cd backend && npx tsx --test src/tests/reminder_tests.ts",
     "test:mcp": "cd backend && npx tsx src/mcp/test_mcp_e2e.ts",
     "test:flows": "powershell -ExecutionPolicy Bypass -File ./tests/test_flows.ps1",
-    "test": "npm run test:unit && npm run test:reminders && npm run test:mcp && npm run test:flows",
-    "test:all": "npm run test:unit && npm run test:reminders && npm run test:mcp && npm run test:flows",
+    "test": "npm run test:unit && npm run test:security && npm run test:reminders && npm run test:mcp && npm run test:flows",
+    "test:all": "npm run test:unit && npm run test:security && npm run test:reminders && npm run test:mcp && npm run test:flows",
     "db:reset": "cd backend && npx tsx src/db/reset.ts"
   },
   "keywords": [
