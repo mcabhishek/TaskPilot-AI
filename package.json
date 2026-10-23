@@ -1,0 +1,14 @@
+{
+  "name": "taskpilot-ai",
+  "version": "1.0.0",
+  "description": "TaskPilot AI — Plan Smarter. Do More. AI-powered productivity & workflow management workspace.",
+  "scripts": {
+    "start:backend": "cd backend && npm run dev",
+    "start:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build"
+  },
+  "keywords": ["ai", "productivity", "task-management", "workflow-automation"],
+  "author": "TaskPilot AI Team",
+  "license": "MIT"
+}
