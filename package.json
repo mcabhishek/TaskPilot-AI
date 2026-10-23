@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "TaskPilot AI — Plan Smarter. Do More. AI-powered productivity workspace with Model Context Protocol (MCP) server.",
   "scripts": {
+    "start": "node scripts/start.js",
+    "dev": "node scripts/start.js",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "start:backend": "cd backend && npm run dev",
     "start:frontend": "cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm run build",
@@ -14,6 +17,7 @@
     "test:mcp": "cd backend && npx tsx src/mcp/test_mcp_e2e.ts",
     "test:flows": "powershell -ExecutionPolicy Bypass -File ./tests/test_flows.ps1",
     "test": "npm run test:unit && npm run test:reminders && npm run test:mcp && npm run test:flows",
+    "test:all": "npm run test:unit && npm run test:reminders && npm run test:mcp && npm run test:flows",
     "db:reset": "cd backend && npx tsx src/db/reset.ts"
   },
   "keywords": [

@@ -126,35 +126,53 @@ npm test
 
 ---
 
-## ⚡ Quick Start & Deployment Guide
+## ⚡ Quick Start (One Command)
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/mcabhishek/TaskPilot-AI.git
+cd TaskPilot-AI
+npm run install:all
+```
+
+### 2. Start Both Backend & Frontend
+Simply run:
+```bash
+npm start
+```
+*(This launches the Backend on `http://localhost:5000` and the Frontend on `http://localhost:5173` simultaneously).*
+
+### 3. Open in Browser
+Visit **`http://localhost:5173`** and log in with the preloaded demo account:
+- **Email**: `demo@taskpilot.ai`
+- **Password**: `demo12345`
+
+To reset the database to a clean, professional state at any time:
+```bash
+npm run db:reset
+```
+
+---
+
+## ⚡ Detailed Commands & Deployment Guide
 
 ### Prerequisites
 - Node.js (v18+ or v24+ recommended)
 - npm
 
-### 1. Setup Environment Variables
-Copy `.env.example` to `.env` in the `backend/` directory:
-```bash
-PORT=5000
-NODE_ENV=development
-JWT_SECRET=taskpilot-super-secret-jwt-key-2026
-```
+### All Available Scripts
 
-### 2. Start Servers
-From the repository root:
-```bash
-# Start backend on http://localhost:5000
-npm run start:backend
-
-# In a separate terminal, start frontend on http://localhost:5173
-npm run start:frontend
-```
-
-### 3. Demo Account
-Navigate to `http://localhost:5173`:
-- Click **"Explore Demo Workspace"** or sign in with:
-  - **Email**: `demo@taskpilot.ai`
-  - **Password**: `demo12345`
+| Command | Description |
+| :--- | :--- |
+| `npm start` | **Starts both backend and frontend concurrently** |
+| `npm run dev` | Alias for `npm start` |
+| `npm run install:all` | Installs root, backend, and frontend dependencies |
+| `npm run start:backend` | Starts only the backend dev server (`http://localhost:5000`) |
+| `npm run start:frontend` | Starts only the frontend dev server (`http://localhost:5173`) |
+| `npm run db:reset` | Resets SQLite database and seeds clean demo workspace |
+| `npm test` | Runs all 4 test suites (unit, reminders, MCP protocol E2E, flows) |
+| `npm run test:mcp` | Runs official 16-step MCP Protocol & SSE E2E test |
+| `npm run build` | Compiles backend TypeScript and builds frontend production bundle |
 
 ### 4. Public HTTPS Deployment for Hackathon Evaluators
 To expose the MCP server to external clients (e.g. Claude Desktop, Cursor, or external Alexa skills):
