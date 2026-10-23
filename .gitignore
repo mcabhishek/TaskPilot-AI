@@ -1,6 +1,10 @@
 node_modules/
 dist/
 data/
+backend/data/
+*.db
+*.db-shm
+*.db-wal
 *.log
 .env
 .DS_Store
