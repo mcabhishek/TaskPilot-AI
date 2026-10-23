@@ -522,7 +522,7 @@ export default function AIAssistant() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShieldCheck size={18} style={{ color: 'var(--primary-orange)' }} />
                 <span>
-                  <strong>Hackathon Verified Path:</strong> Real self-hosted MCP server running on <strong>Streamable HTTP SSE</strong>. All actions execute live against SQLite.
+                  <strong>Hackathon Verified Path:</strong> Real self-hosted MCP server running on <strong>Streamable HTTP Transport (/mcp)</strong>. All actions execute live against SQLite.
                 </span>
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Spec: 2025-11-25</span>
@@ -746,7 +746,7 @@ export default function AIAssistant() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: '#9CDCFE' }}>
                         <span>Method: tools/call ({msg.tool_executed})</span>
-                        <span>Transport: Streamable HTTP (SSE)</span>
+                        <span>Transport: Streamable HTTP</span>
                       </div>
                       <div style={{ color: '#CE9178', marginBottom: '0.25rem' }}>
                         Arguments: {JSON.stringify(msg.mcp_trace.arguments)}
@@ -762,7 +762,7 @@ export default function AIAssistant() {
               {alexaStatus === 'processing' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                   <RefreshCw size={16} className="animate-spin" style={{ color: 'var(--primary-orange)' }} />
-                  <span>Executing MCP tool over Streamable HTTP SSE transport...</span>
+                  <span>Executing MCP tool over Streamable HTTP transport...</span>
                 </div>
               )}
               <div ref={alexaEndRef} />

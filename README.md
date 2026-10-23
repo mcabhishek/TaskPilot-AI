@@ -184,7 +184,7 @@ To expose the MCP server to external clients (e.g. Claude Desktop, Cursor, or ex
 # Using Cloudflare Tunnel or ngrok:
 ngrok http 5000
 # Your public MCP Streamable HTTP endpoint:
-# https://<your-subdomain>.ngrok-free.app/mcp/sse?token=<jwt>
+# https://<your-subdomain>.ngrok-free.app/mcp?token=<jwt>
 ```
 
 ---
@@ -192,7 +192,7 @@ ngrok http 5000
 ## 🎥 Recording & Demonstration Checklist
 
 To record the 3-minute hackathon demo video:
-1. **Show MCP Server Connection**: Navigate to `/ai`, point out the green badge: `MCP Server: Connected (Streamable HTTP SSE) • 10 Tools`.
+1. **Show MCP Server Connection**: Navigate to `/ai`, point out the green badge: `MCP Server: Connected (Streamable HTTP) • 11 Tools`.
 2. **Execute Daily Briefing via Voice**: Tap the microphone or click prompt *"What do I need to finish today?"*. Point out the `get_daily_briefing` MCP tool execution chip and audio response.
 3. **Multi-Turn Smart Reminder**: Say *"Remind me to submit my assignment tomorrow at 9 AM"*. Note the confirmation prompt: *"Would you like me to save it?"*. Click or say *"Yes, save it"*. Show the reminder appear in the live cards.
 4. **Reschedule Task**: Say *"Reschedule urgent task to Friday"*. Watch `reschedule_task` execute over MCP and update the database.
