@@ -245,8 +245,23 @@ async function runMcpE2ETests() {
   assert.strictEqual(confirmedDelete.isError, undefined, 'Confirmed delete should succeed');
   console.log(`✓ Confirmed deletion succeeded and purged task from SQLite.\n`);
 
-  // STEP 14: Security Validation — Cross-User Isolation
-  console.log('--- Step 14: Security Validation — Cross-User Isolation ---');
+  // STEP 14: Security Validation — Cross-User Isolation on Real Existing Records
+  console.log('--- Step 14: Security Validation — Cross-User Isolation on Real Existing Records ---');
+  // 1. User A creates a brand new confidential task that genuinely exists in SQLite
+  const userACreateRes = await client.callTool({
+    name: 'create_task',
+    arguments: {
+      title: 'User A Confidential Active Task',
+      description: 'Strictly owned by User A',
+      priority: 'HIGH',
+    },
+  });
+  assert.strictEqual(userACreateRes.isError, undefined, 'User A task creation should succeed');
+  const userACreateData = JSON.parse(((userACreateRes as any).content[0] as any).text);
+  const userATaskId = userACreateData.task.id;
+  assert.ok(userATaskId, 'User A task must have a valid ID');
+
+  // 2. Register and authenticate a distinct User B
   const userBRegRes = await fetch(`${BASE_URL}/api/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -273,17 +288,62 @@ async function runMcpE2ETests() {
 
   await userBClient.connect(userBTransport);
 
-  // User B tries to reschedule User A's task
-  const crossUserRes = await userBClient.callTool({
+  // 3. User B attempts to mutate User A's genuinely existing task
+  const updateAttempt = await userBClient.callTool({
+    name: 'update_task',
+    arguments: {
+      task_id: userATaskId,
+      title: 'Hacked by User B',
+    },
+  });
+  assert.strictEqual(updateAttempt.isError, true, 'User B update_task on User A task must fail with isError: true');
+
+  // 4. User B attempts to complete User A's task
+  const completeAttempt = await userBClient.callTool({
+    name: 'complete_task',
+    arguments: {
+      task_id: userATaskId,
+    },
+  });
+  assert.strictEqual(completeAttempt.isError, true, 'User B complete_task on User A task must fail with isError: true');
+
+  // 5. User B attempts to reschedule User A's task
+  const rescheduleAttempt = await userBClient.callTool({
     name: 'reschedule_task',
     arguments: {
-      task_id: createdTaskId,
+      task_id: userATaskId,
       due_date: new Date().toISOString(),
     },
   });
+  assert.strictEqual(rescheduleAttempt.isError, true, 'User B reschedule_task on User A task must fail with isError: true');
 
-  assert.strictEqual(crossUserRes.isError, true, 'Cross-user mutation must fail with isError: true');
-  console.log(`✓ Cross-user mutation attempt successfully rejected with error.\n`);
+  // 6. User B attempts to delete User A's task
+  const deleteAttempt = await userBClient.callTool({
+    name: 'delete_task',
+    arguments: {
+      task_id: userATaskId,
+      confirm: true,
+    },
+  });
+  assert.strictEqual(deleteAttempt.isError, true, 'User B delete_task on User A task must fail with isError: true');
+
+  // 7. Verify User A's task remains untouched in SQLite
+  const userAList = await client.callTool({
+    name: 'list_tasks',
+    arguments: { search: 'User A Confidential Active Task' },
+  });
+  const userAListData = JSON.parse(((userAList as any).content[0] as any).text);
+  assert.strictEqual(userAListData.tasks.length, 1, 'User A task must still exist');
+  assert.strictEqual(userAListData.tasks[0].title, 'User A Confidential Active Task', 'Task title must remain unchanged');
+  assert.strictEqual(userAListData.tasks[0].status, 'TODO', 'Task status must remain unmutated (TODO)');
+
+  // Clean up User A task
+  await client.callTool({
+    name: 'delete_task',
+    arguments: { task_id: userATaskId, confirm: true },
+  });
+
+  console.log(`✓ Real multi-tenant isolation verified: User B could not read, mutate, complete, reschedule, or delete User A's existing task.\n`);
 
   await userBClient.close();
   await client.close();

@@ -7,20 +7,20 @@
 
 ## 🚀 Overview
 
-**TaskPilot AI** is a production-grade, privacy-first productivity assistant engineered for the Amazon AppDev 2026 Alexa+ Hackathon. It combines relational database persistence (SQLite WAL mode), reactive workflow automation, and an official **Model Context Protocol (MCP)** server adhering to the official specification using `@modelcontextprotocol/sdk` (v1.32.1).
+**TaskPilot AI** is a secure, privacy-first productivity assistant prototype engineered and tested for the Amazon Developer AppDev 2026 Alexa+ Hackathon. It combines relational database persistence (SQLite WAL mode), reactive workflow automation, and an official **Model Context Protocol (MCP)** server implementing the official **Streamable HTTP** transport using `@modelcontextprotocol/sdk` (v1.32.1).
 
-### Hackathon Compliance & The Alexa+ Architecture
+### Hackathon Evaluation Architecture & The Alexa+ Ecosystem
 
 According to the official Amazon AppDev 2026 Alexa+ Hackathon rules and FAQ:
-- **Direct physical Alexa+ developer tool integration** is restricted to selected Amazon invite-only partner organizations.
+- **Direct physical Alexa+ developer hardware access** is restricted to selected Amazon invite-only partner organizations.
 - For all hackathon participants, the official approved evaluation path is:
-  1. A **real, self-hosted Model Context Protocol (MCP) server** operating over **Streamable HTTP (Server-Sent Events)** suitable for public HTTPS deployment.
+  1. A **real, self-hosted Model Context Protocol (MCP) server** operating over **Streamable HTTP** (`/mcp`) suitable for public HTTPS deployment.
   2. A **polished web simulator** that behaves like a voice assistant, communicating strictly via an official **MCP Client** using `tools/list` and `tools/call`.
   3. **OAuth 2.1 authorization code flow with PKCE (S256)**, resource indicators, and RFC 8414 authorization server metadata for external agent interoperability.
 
 TaskPilot AI implements this architecture cleanly and transparently:
 - **Zero fake data or mocked endpoints**: Every MCP tool directly reads or mutates persistent SQLite database tables.
-- **Strict tenant isolation**: User data is strictly bound to cryptographic JWT claims, preventing cross-user data leakage.
+- **Strict multi-tenant isolation**: User data is strictly bound to cryptographic JWT claims, preventing cross-user data leakage.
 - **Natural multi-turn voice & text interaction**: Handles voice input (Web Speech API) with conversational confirmation dialogs (e.g. before creating reminders or deleting tasks).
 
 ---
@@ -71,10 +71,10 @@ TaskPilot AI implements an official MCP server using `@modelcontextprotocol/sdk`
 
 ---
 
-## 🛠️ The 10 Official TaskPilot MCP Tools
-
-Every tool performs real operations against the persistent SQLite relational database:
-
+## 🛠️ The 11 Registered TaskPilot MCP Tools
+ 
+Every tool performs real operations against the persistent SQLite relational database with strict user ownership validation:
+ 
 | # | Tool Name | Description | Parameters |
 | :- | :--- | :--- | :--- |
 | 1 | `get_daily_briefing` | Return today's tasks, upcoming deadlines (next 7 days), overdue tasks, and scheduled reminders. | *(none)* |
@@ -87,24 +87,24 @@ Every tool performs real operations against the persistent SQLite relational dat
 | 8 | `snooze_reminder` | Postpone a reminder by a specified duration in minutes (default 15). | `reminder_id` (required), `minutes` (1-1440) |
 | 9 | `list_reminders` | Retrieve upcoming, completed, and overdue reminders with their linked task details. | `status` (`UPCOMING`, `OVERDUE`, `COMPLETED`, `PENDING`, `SNOOZED`, `DISMISSED`, `ALL`), `task_id`, `limit` |
 | 10 | `delete_task` | Delete a task only after the requested operation has been clearly identified and validated with confirmation. | `task_id` (optional), `task_title` (optional), `confirm` (required boolean) |
-| * | `dismiss_reminder` | Dismiss an active reminder and clear associated notifications. | `reminder_id` (required) |
-
+| 11 | `dismiss_reminder` | Dismiss an active reminder and clear associated notifications. | `reminder_id` (required) |
+ 
 ---
-
+ 
 ## 🎙️ Dedicated Alexa-Style Assistant & MCP Simulator
-
+ 
 The frontend features a dedicated Assistant interface accessible at `/ai`:
 - **Assistant Identity & Microphone Button**: Animated listening orb visualizer with Web Speech API speech-to-text and SpeechSynthesis natural narration.
 - **Conversation Area**: Chronological dialogue with user speech transcripts, assistant vocal responses, and interactive confirmation buttons (e.g., confirming a reminder or deletion).
-- **Visible Connection Status Badge**: Real-time display indicating `MCP Server: Connected (Streamable HTTP SSE)`, protocol version `2025-11-25`, and `10 Tools Discovered`.
+- **Visible Connection Status Badge**: Real-time display indicating `MCP Server: Connected (Streamable HTTP)`, protocol version `2024-11-05`, and `11 Tools Discovered`.
 - **Tool Execution History & Inspector**: Every assistant interaction records the exact MCP tool called, input arguments, execution latency in milliseconds, and returned JSON-RPC payload.
 - **Live Workstation Cards**: Real-time task cards and scheduled reminder cards that dynamically refresh after tool execution.
-
+ 
 ### Example Multi-Turn Conversation
 > **User**: *"Remind me to submit my assignment tomorrow at 9 AM"*  
 > **Assistant**: *"I'll create a reminder for 'Submit assignment' scheduled for tomorrow at 9:00 AM. Would you like me to save it?"*  
 > **User**: *"Yes, save it"*  
-> **Assistant calls `create_reminder`** via the official MCP Client over Streamable HTTP SSE, receives the persisted record, and confirms: *"I've saved your reminder successfully."*
+> **Assistant calls `create_reminder`** via the official MCP Client over Streamable HTTP (`/mcp`), receives the persisted record, and confirms: *"I've saved your reminder successfully."*
 
 ---
 
@@ -155,6 +155,32 @@ To reset the database to a clean, professional state at any time:
 ```bash
 npm run db:reset
 ```
+
+### 🔒 Environment Configuration & JWT Secret Generation
+
+TaskPilot AI enforces secure environment management and refuses to start in production if `JWT_SECRET` is missing, insecure, or shorter than 32 characters.
+
+Copy `.env.example` to `.env` in the root or `backend/` directory:
+```bash
+cp .env.example .env
+```
+
+Generate a secure, random 32-character secret using Node.js:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Configure your `.env` variables:
+```env
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=your_generated_32_char_hex_secret_here
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+DATABASE_PATH=./src/db/taskpilot.db
+```
+
+> [!NOTE]
+> **Disposable Demo Account**: `demo@taskpilot.ai` / `demo12345` is purely for local hackathon evaluation against a local SQLite database file. It does not access external resources or production servers and can be wiped and re-seeded at any moment with `npm run db:reset`. No real secrets or credentials are ever committed to this repository.
 
 ---
 
