@@ -1,0 +1,17 @@
+import { useState } from 'react'
+import { Search, Plus, MoreHorizontal, Users, CalendarDays, FolderKanban } from 'lucide-react'
+import { PageHeader, Card, Badge, SearchInput, EmptyState } from '../components/UI'
+
+const seed=[{id:1,name:'MCA Study Plan',desc:'Organize MCA subjects and revision.',progress:65,status:'Active',due:'Oct 30, 2026',tone:'purple',tasks:12},{id:2,name:'Web Development',desc:'Build and deploy portfolio projects.',progress:45,status:'Active',due:'Nov 04, 2026',tone:'blue',tasks:9},{id:3,name:'Research Project',desc:'Research and document findings.',progress:30,status:'Active',due:'Nov 12, 2026',tone:'green',tasks:10}]
+export default function Projects(){
+ const [projects,setProjects]=useState(seed),[query,setQuery]=useState(''),[filter,setFilter]=useState('All'),[show,setShow]=useState(false),[name,setName]=useState('')
+ function add(e){e.preventDefault();if(!name.trim())return;setProjects(p=>[{id:Date.now(),name:name.trim(),desc:'New project workspace',progress:0,status:'Active',due:'Not set',tone:'orange',tasks:0},...p]);setName('');setShow(false)}
+ const shown=projects.filter(p=>p.name.toLowerCase().includes(query.toLowerCase())&&(filter==='All'||p.status===filter))
+ return <div className="page-stack"><PageHeader title="Projects" subtitle="Manage projects and collaborate with your team." action="New Project" onAction={()=>setShow(!show)}/>
+  {show&&<form className="inline-form card" onSubmit={add}><input value={name} onChange={e=>setName(e.target.value)} placeholder="Project name" required/><button className="btn btn-primary">Create project</button><button type="button" className="btn btn-secondary" onClick={()=>setShow(false)}>Cancel</button></form>}
+  <div className="toolbar"><div className="tabs">{['All','Active','Completed'].map(x=><button key={x} onClick={()=>setFilter(x)} className={filter===x?'tab-active':''}>{x}</button>)}</div><SearchInput placeholder="Search projects..."/></div>
+  <div className="project-grid">{shown.map((p,i)=><Card key={p.id} className="project-card"><div className="project-card-top"><span className={`project-icon project-${p.tone}`}><FolderKanban size={20}/></span><button className="icon-btn"><MoreHorizontal size={18}/></button></div><h3>{p.name}</h3><p className="project-desc">{p.desc}</p><div className="progress-label"><span>Progress</span><strong>{p.progress}%</strong></div><div className="progress-track"><span style={{width:`${p.progress}%`}}/></div><div className="project-card-footer"><span><Users size={14}/>{p.tasks} tasks</span><span><CalendarDays size={14}/>{p.due}</span></div></Card>)}</div>
+  {shown.length===0&&<Card><EmptyState title="No projects found" text="Create a project or change your search."/></Card>}
+  <Card title="Project tasks" subtitle="Recent tasks across your projects"><div className="table-scroll"><table><thead><tr><th>Task</th><th>Project</th><th>Assignee</th><th>Status</th><th>Due date</th></tr></thead><tbody><tr><td>Design UI wireframes</td><td>MCA Study Plan</td><td>Abhishek MC</td><td><Badge tone="info">In progress</Badge></td><td>Oct 24</td></tr><tr><td>API integration</td><td>Web Development</td><td>Unassigned</td><td><Badge tone="neutral">Todo</Badge></td><td>Oct 26</td></tr><tr><td>Write research summary</td><td>Research Project</td><td>Unassigned</td><td><Badge tone="success">Completed</Badge></td><td>Oct 22</td></tr></tbody></table></div><p className="footnote">Replace these starter rows with actual project and task API data.</p></Card>
+ </div>
+}
