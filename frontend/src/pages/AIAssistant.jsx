@@ -4,27 +4,20 @@ import {
   Sparkles,
   Send,
   CheckCircle2,
-  XCircle,
   Clock,
   Calendar,
-  Layers,
-  ArrowRight,
   ListTodo,
   MessageSquare,
-  FileText,
   Copy,
   Check,
-  Plus,
-  Trash2,
   RotateCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { PageHeader } from '../components/common/PageHeader';
 import { Card } from '../components/common/Card';
-import { PrimaryButton, SecondaryButton, IconButton } from '../components/common/Button';
+import { PrimaryButton, SecondaryButton } from '../components/common/Button';
 import { PriorityBadge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { useToast } from '../components/common/Toast';
 
 export default function AIAssistant() {

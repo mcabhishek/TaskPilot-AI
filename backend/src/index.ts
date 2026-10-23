@@ -15,6 +15,7 @@ import { analyticsRouter } from './modules/analytics/analyticsRoutes.js';
 import { notificationsRouter } from './modules/notifications/notificationsRoutes.js';
 import { integrationsRouter } from './modules/integrations/integrationsRoutes.js';
 import { settingsRouter } from './modules/settings/settingsRoutes.js';
+import { mcpRouter } from './mcp/mcpRouter.js';
 import { checkOverdueTasksAllUsers } from './modules/workflows/workflowEngine.js';
 
 dotenv.config();
@@ -57,6 +58,10 @@ app.use('/api/v1/analytics', analyticsRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/integrations', integrationsRouter);
 app.use('/api/v1/settings', settingsRouter);
+
+// Model Context Protocol (MCP) Streamable HTTP routes
+app.use('/mcp', mcpRouter);
+app.use('/api/v1/mcp', mcpRouter);
 
 // Centralized error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
