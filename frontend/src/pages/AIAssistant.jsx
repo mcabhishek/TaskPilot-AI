@@ -75,9 +75,6 @@ export default function AIAssistant() {
   ]);
   const [activeReminders, setActiveReminders] = useState([]);
   const [activeTasks, setActiveTasks] = useState([]);
-  const [briefingSummary, setBriefingSummary] = useState(null);
-  const [loadingWorkspaceData, setLoadingWorkspaceData] = useState(false);
-  const [toolLogs, setToolLogs] = useState([]);
   const [expandedTraceId, setExpandedTraceId] = useState(null);
 
   const recognitionRef = useRef(null);
