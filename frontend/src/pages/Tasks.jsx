@@ -11,9 +11,7 @@ import {
   Edit2,
   ChevronDown,
   ChevronRight,
-  AlertTriangle,
-  FolderKanban,
-  Check
+  Bell
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -55,6 +53,10 @@ export default function Tasks() {
   const [formProjectId, setFormProjectId] = useState('');
   const [formDuration, setFormDuration] = useState('45');
   const [formSubtasks, setFormSubtasks] = useState(['']);
+
+  // Reminder state
+  const [reminderModalTask, setReminderModalTask] = useState(null);
+  const [reminderMinutes, setReminderMinutes] = useState(30);
 
   // Delete dialog
   const [deletingTaskId, setDeletingTaskId] = useState(null);
@@ -216,6 +218,22 @@ export default function Tasks() {
       loadData();
     } catch (err) {
       toast.error(err.message || 'Error saving task');
+    }
+  };
+
+  const handleCreateReminder = async () => {
+    if (!reminderModalTask) return;
+    try {
+      const reminderTime = new Date(Date.now() + Number(reminderMinutes) * 60 * 1000).toISOString();
+      await api.createReminder({
+        taskId: reminderModalTask.id,
+        reminderTime,
+        reminderType: 'CUSTOM',
+      });
+      toast.success(`Reminder set for "${reminderModalTask.title}" in ${reminderMinutes} minutes`);
+      setReminderModalTask(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to schedule reminder');
     }
   };
 
@@ -438,6 +456,12 @@ export default function Tasks() {
                   {/* Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <IconButton
+                      icon={Bell}
+                      title="Schedule Smart Reminder"
+                      size={15}
+                      onClick={() => setReminderModalTask(task)}
+                    />
+                    <IconButton
                       icon={Edit2}
                       title="Edit task"
                       size={15}
@@ -606,6 +630,80 @@ export default function Tasks() {
             </PrimaryButton>
           </div>
         </form>
+      </Modal>
+
+      {/* Smart Reminder Modal */}
+      <Modal
+        isOpen={Boolean(reminderModalTask)}
+        onClose={() => setReminderModalTask(null)}
+        title="Schedule Smart Reminder"
+        maxWidth={460}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+              Task
+            </div>
+            <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary-text)', marginTop: 2 }}>
+              {reminderModalTask?.title}
+            </div>
+            {reminderModalTask?.due_date && (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--secondary-text)', marginTop: 4 }}>
+                Due on: {new Date(reminderModalTask.due_date).toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 8 }}>
+              Remind me in:
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+              {[15, 30, 60].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setReminderMinutes(m)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid',
+                    borderColor: reminderMinutes === m ? 'var(--primary-orange)' : 'var(--border)',
+                    backgroundColor: reminderMinutes === m ? 'var(--surface-peach)' : 'var(--surface-primary)',
+                    color: reminderMinutes === m ? 'var(--primary-orange)' : 'var(--primary-text)',
+                    fontWeight: 600,
+                    fontSize: 'var(--text-xs)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {m < 60 ? `${m} mins` : '1 hour'}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--secondary-text)' }}>Or custom minutes:</span>
+              <input
+                type="number"
+                min="1"
+                max="1440"
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(Math.max(1, parseInt(e.target.value) || 15))}
+                className="input-text"
+                style={{ width: 90, padding: '4px 8px', fontSize: 'var(--text-xs)' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <SecondaryButton onClick={() => setReminderModalTask(null)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton onClick={handleCreateReminder}>
+              Set Reminder
+            </PrimaryButton>
+          </div>
+        </div>
       </Modal>
 
       {/* Confirmation Dialog for Task Deletion */}

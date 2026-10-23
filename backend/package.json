@@ -7,7 +7,11 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "echo \"Tests completed\""
+    "test:unit": "tsx --test src/tests/unit_tests.ts",
+    "test:reminders": "tsx --test src/tests/reminder_tests.ts",
+    "test:mcp": "tsx src/mcp/test_mcp_e2e.ts",
+    "test": "npm run test:unit && npm run test:reminders && npm run test:mcp",
+    "db:reset": "tsx src/db/reset.ts"
   },
   "keywords": [],
   "author": "",

@@ -191,10 +191,23 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS focus_sessions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+      task_id REFERENCES tasks(id) ON DELETE SET NULL,
       duration_minutes INTEGER NOT NULL,
       notes TEXT,
       completed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS reminders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      reminder_time DATETIME NOT NULL,
+      reminder_type TEXT DEFAULT 'EXACT_TIME',
+      delivery_status TEXT DEFAULT 'PENDING',
+      snooze_until DATETIME,
+      last_delivered_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Useful indexes for fast user isolation and query performance
@@ -204,7 +217,17 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
     CREATE INDEX IF NOT EXISTS idx_workflows_user ON workflows(user_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_reminders_user_status ON reminders(user_id, delivery_status);
+    CREATE INDEX IF NOT EXISTS idx_reminders_time ON reminders(reminder_time, snooze_until);
+    CREATE INDEX IF NOT EXISTS idx_reminders_task ON reminders(task_id);
   `);
+
+  // Safely ensure action_payload column exists in notifications table
+  try {
+    db.prepare('ALTER TABLE notifications ADD COLUMN action_payload TEXT DEFAULT "{}"').run();
+  } catch (err: any) {
+    // Column already exists or error ignored
+  }
 
   console.log('Database initialized successfully with foreign keys and schema.');
 }

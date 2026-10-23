@@ -1,4 +1,4 @@
-﻿Write-Host "=== TEST 1: AUTHENTICATION ==="
+Write-Host "=== TEST 1: AUTHENTICATION ==="
 $auth = Invoke-RestMethod -Uri "http://localhost:5000/api/v1/auth/demo" -Method Post
 $token = $auth.token
 Write-Host "User authenticated: $($auth.user.name) ($($auth.user.email))"
@@ -45,5 +45,8 @@ Write-Host "`n=== TEST 8: ANALYTICS ==="
 $analytics = Invoke-RestMethod -Uri "http://localhost:5000/api/v1/analytics/overview" -Headers $headers
 Write-Host "Updated Completion Rate: $($analytics.summary.completionRate)%"
 Write-Host "Focus Time: $($analytics.summary.totalFocusMinutes) mins"
+
+# Cleanup generated project to maintain pristine database state
+Invoke-RestMethod -Uri "http://localhost:5000/api/v1/projects/$($approveRes.projectId)" -Method Delete -Headers $headers | Out-Null
 
 Write-Host "`nALL 8 CORE END-TO-END FLOWS VERIFIED SUCCESSFULLY!"

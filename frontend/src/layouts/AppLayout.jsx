@@ -16,13 +16,15 @@ import {
   Menu,
   X,
   Search,
-  ChevronDown
+  ChevronDown,
+  Mic
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from '../components/common/PageHeader';
 import { NotificationMenu } from '../components/common/NotificationMenu';
 import { GlobalSearch } from '../components/common/GlobalSearch';
 import { PrimaryButton, SecondaryButton } from '../components/common/Button';
+import { VoiceAssistantModal } from '../components/common/VoiceAssistantModal';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -31,6 +33,7 @@ export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [voiceAssistantOpen, setVoiceAssistantOpen] = useState(false);
 
   const navGroups = [
     {
@@ -356,10 +359,30 @@ export default function AppLayout() {
               <Plus size={14} /> Create Task
             </button>
 
+            {/* Alexa-Style Voice Assistant Trigger */}
+            <button
+              onClick={() => setVoiceAssistantOpen(true)}
+              className="btn-icon"
+              title="Alexa-Style Productivity Assistant"
+              style={{
+                backgroundColor: 'var(--surface-peach)',
+                color: 'var(--primary-orange)',
+                border: '1px solid rgba(232, 117, 50, 0.25)',
+              }}
+            >
+              <Mic size={16} />
+            </button>
+
             {/* Notifications Menu */}
             <NotificationMenu />
           </div>
         </header>
+
+        {/* Global Voice Assistant Modal */}
+        <VoiceAssistantModal
+          isOpen={voiceAssistantOpen}
+          onClose={() => setVoiceAssistantOpen(false)}
+        />
 
         {/* Page Content Viewport */}
         <main className="page-body">

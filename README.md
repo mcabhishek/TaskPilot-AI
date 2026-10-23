@@ -1,36 +1,38 @@
 # TaskPilot AI — Plan Smarter. Do More.
 
-> **AI-Powered Productivity Workspace with Model Context Protocol (MCP) Integration**  
-> *Built for the Amazon Developer Hackathon*
+> **AI-Powered Productivity Workspace with Official Model Context Protocol (MCP) Server**  
+> *Built for the Amazon Developer AppDev 2026 Alexa+ Hackathon*
 
 ---
 
 ## 🚀 Overview
 
-**TaskPilot AI** transforms high-level goals into structured, actionable execution. Instead of juggling fragmented to-do apps, static calendar views, disconnected notes, and generic chatbots, TaskPilot AI provides a unified workspace that bridges conversational intelligence with real database persistence, visual workflow automation, and an official **Model Context Protocol (MCP)** server.
+**TaskPilot AI** is a production-grade, privacy-first productivity assistant engineered for the Amazon AppDev 2026 Alexa+ Hackathon. It combines relational database persistence (SQLite WAL mode), reactive workflow automation, and an official **Model Context Protocol (MCP)** server adhering to the official specification using `@modelcontextprotocol/sdk` (v1.32.1).
 
-### The Problem
-Traditional task managers require painstaking manual organization and lack context. Chatbots provide abstract suggestions without creating actual deliverables or tracking progress. When deadlines slip, users have no automated safeguards. Furthermore, AI agents outside the application cannot interact with user productivity data securely.
+### Hackathon Compliance & The Alexa+ Architecture
 
-### The Solution
-TaskPilot AI combines:
-1. **Official Model Context Protocol (MCP) Server**: Exposes standard MCP tools (`create_task`, `list_tasks`, `update_task`, `complete_task`) over both Streamable HTTP (SSE) and Stdio transports, allowing Claude, Cursor, and external agents to orchestrate productivity workflows safely.
-2. **AI Goal Planning with Human Approval**: Converts requests like *"Help me prepare for my MCA exams in 30 days"* into structured milestones, tasks, estimated durations, and subtasks—with human review before committing to the database.
-3. **End-to-End Task & Project Management**: Priorities (`LOW`, `MEDIUM`, `HIGH`, `URGENT`), status transitions (`TODO`, `IN_PROGRESS`, `DONE`), subtasks, and calculated project velocity.
-4. **Calendar Scheduling**: Interactive month, week, and day scheduling with quick reschedule dialogs.
-5. **Visual Workflow Automation**: Real event-driven engine (`TASK_OVERDUE`, `TASK_CREATED`, `STATUS_CHANGED`) with duplicate run protection and execution audit logs.
-6. **Verified Productivity Telemetry**: Analytics calculated from active database records, plus a built-in Pomodoro deep work timer.
+According to the official Amazon AppDev 2026 Alexa+ Hackathon rules and FAQ:
+- **Direct physical Alexa+ developer tool integration** is restricted to selected Amazon invite-only partner organizations.
+- For all hackathon participants, the official approved evaluation path is:
+  1. A **real, self-hosted Model Context Protocol (MCP) server** operating over **Streamable HTTP (Server-Sent Events)** suitable for public HTTPS deployment.
+  2. A **polished web simulator** that behaves like a voice assistant, communicating strictly via an official **MCP Client** using `tools/list` and `tools/call`.
+  3. **OAuth 2.1 authorization code flow with PKCE (S256)**, resource indicators, and RFC 8414 authorization server metadata for external agent interoperability.
+
+TaskPilot AI implements this architecture cleanly and transparently:
+- **Zero fake data or mocked endpoints**: Every MCP tool directly reads or mutates persistent SQLite database tables.
+- **Strict tenant isolation**: User data is strictly bound to cryptographic JWT claims, preventing cross-user data leakage.
+- **Natural multi-turn voice & text interaction**: Handles voice input (Web Speech API) with conversational confirmation dialogs (e.g. before creating reminders or deleting tasks).
 
 ---
 
 ## 🎨 Visual Design System
 
-Built with a warm, elegant, light theme inspired by premium modern productivity products:
+Built with a warm, elegant design system matching the established TaskPilot AI palette:
 - **Main Background**: `#FAF8F5`
 - **Primary Surfaces**: `#FFFFFF`
 - **Secondary Surfaces**: `#F7F1EB`
-- **Soft Peach (Active Navigation)**: `#FBE8D9`
-- **Primary Orange**: `#E87532`
+- **Active Navigation (Soft Peach)**: `#FBE8D9`
+- **Primary Orange (Brand Accent)**: `#E87532`
 - **Hover Orange**: `#C95D24`
 - **Primary Text**: `#25231F`
 - **Secondary Text**: `#77716A`
@@ -42,84 +44,104 @@ Built with a warm, elegant, light theme inspired by premium modern productivity 
 
 ---
 
-## 🤖 Model Context Protocol (MCP) Server
+## 🤖 Official Model Context Protocol (MCP) Server
 
-TaskPilot AI implements an official **Model Context Protocol (MCP)** server adhering to the official specification using `@modelcontextprotocol/sdk` (v1.32.1).
+TaskPilot AI implements an official MCP server using `@modelcontextprotocol/sdk` conforming to the 2025-11-25 / 2024-11-05 specifications.
 
-### Supported Transports
+### Supported Transports & Endpoints
+
 1. **Streamable HTTP (Server-Sent Events)**:
-   - SSE Connection: `GET /mcp/sse?token=<jwt>` (or `Authorization: Bearer <token>`)
-   - Message Delivery: `POST /mcp/messages?sessionId={id}`
-   - Service Info: `GET /mcp/info`
+   - **SSE Stream**: `GET /mcp/sse?token=<jwt>` (or `Authorization: Bearer <token>`)
+   - **JSON-RPC Messages**: `POST /mcp/messages?sessionId={id}`
+   - **Service Metadata**: `GET /mcp/info`
 2. **Standard I/O (Stdio Transport)**:
    - Executable: `backend/src/mcp/stdio.ts`
-   - Invocation: `npx tsx src/mcp/stdio.ts` (with `TASKPILOT_USER_EMAIL` or `TASKPILOT_API_TOKEN`)
+   - Run: `npx tsx src/mcp/stdio.ts` (with `TASKPILOT_USER_EMAIL` or `TASKPILOT_API_TOKEN`)
+3. **Official MCP Client Service (Backend-for-Frontend)**:
+   - `GET /api/v1/mcp-client/status`: Inspects active Streamable HTTP connection and tool discovery.
+   - `POST /api/v1/mcp-client/call-tool`: Direct JSON-RPC `tools/call` execution over SSE.
+   - `POST /api/v1/mcp-client/assistant`: Conversational assistant routing requests through the official MCP client.
+4. **OAuth 2.1 RFC 8414 Authorization Server (Alexa+ Interoperability)**:
+   - Metadata: `GET /.well-known/oauth-authorization-server`
+   - Authorization: `GET /oauth/authorize` (supports `code_challenge`, `code_challenge_method=S256`, `resource`)
+   - Token Exchange: `POST /oauth/token` (verifies `code_verifier` with SHA-256 base64url)
 
-### Registered MCP Tools
+---
 
-| Tool Name | Description | Parameters |
+## 🛠️ The 10 Official TaskPilot MCP Tools
+
+Every tool performs real operations against the persistent SQLite relational database:
+
+| # | Tool Name | Description | Parameters |
+| :- | :--- | :--- | :--- |
+| 1 | `get_daily_briefing` | Return today's tasks, upcoming deadlines (next 7 days), overdue tasks, and scheduled reminders. | *(none)* |
+| 2 | `list_tasks` | Retrieve user tasks with filtering by date (`today`, `tomorrow`, ISO), status (`TODO`, `IN_PROGRESS`, `DONE`), priority, project, search, and overdue flag. | `date`, `status`, `priority`, `project_id`, `search`, `overdue`, `limit` |
+| 3 | `create_task` | Create a task with title, description, priority (`LOW`, `MEDIUM`, `HIGH`, `URGENT`), and optional deadline. | `title` (required), `description`, `priority`, `due_date`, `project_id` |
+| 4 | `create_reminder` | Create a persistent reminder for a specified date and time linked to an existing or auto-created task. | `task_id` (optional), `task_title` (optional), `reminder_time` (required), `reminder_type` |
+| 5 | `complete_task` | Mark a task as completed with an immutable completion timestamp. | `task_id` (optional), `task_title` (optional) |
+| 6 | `reschedule_task` | Change a task's due date or time with timestamp validation and workflow evaluation. | `task_id` (optional), `task_title` (optional), `due_date` (required ISO 8601) |
+| 7 | `update_task` | Update task details, status, priority, or due date with ownership validation. | `task_id` (required), `title`, `description`, `status`, `priority`, `due_date`, `project_id` |
+| 8 | `snooze_reminder` | Postpone a reminder by a specified duration in minutes (default 15). | `reminder_id` (required), `minutes` (1-1440) |
+| 9 | `list_reminders` | Retrieve upcoming, completed, and overdue reminders with their linked task details. | `status` (`UPCOMING`, `OVERDUE`, `COMPLETED`, `PENDING`, `SNOOZED`, `DISMISSED`, `ALL`), `task_id`, `limit` |
+| 10 | `delete_task` | Delete a task only after the requested operation has been clearly identified and validated with confirmation. | `task_id` (optional), `task_title` (optional), `confirm` (required boolean) |
+| * | `dismiss_reminder` | Dismiss an active reminder and clear associated notifications. | `reminder_id` (required) |
+
+---
+
+## 🎙️ Dedicated Alexa-Style Assistant & MCP Simulator
+
+The frontend features a dedicated Assistant interface accessible at `/ai`:
+- **Assistant Identity & Microphone Button**: Animated listening orb visualizer with Web Speech API speech-to-text and SpeechSynthesis natural narration.
+- **Conversation Area**: Chronological dialogue with user speech transcripts, assistant vocal responses, and interactive confirmation buttons (e.g., confirming a reminder or deletion).
+- **Visible Connection Status Badge**: Real-time display indicating `MCP Server: Connected (Streamable HTTP SSE)`, protocol version `2025-11-25`, and `10 Tools Discovered`.
+- **Tool Execution History & Inspector**: Every assistant interaction records the exact MCP tool called, input arguments, execution latency in milliseconds, and returned JSON-RPC payload.
+- **Live Workstation Cards**: Real-time task cards and scheduled reminder cards that dynamically refresh after tool execution.
+
+### Example Multi-Turn Conversation
+> **User**: *"Remind me to submit my assignment tomorrow at 9 AM"*  
+> **Assistant**: *"I'll create a reminder for 'Submit assignment' scheduled for tomorrow at 9:00 AM. Would you like me to save it?"*  
+> **User**: *"Yes, save it"*  
+> **Assistant calls `create_reminder`** via the official MCP Client over Streamable HTTP SSE, receives the persisted record, and confirms: *"I've saved your reminder successfully."*
+
+---
+
+## 🧪 Comprehensive Automated Test Suite
+
+Run the full automated test suite with a single command from the root directory:
+
+```bash
+npm test
+```
+
+### Individual Test Commands & Current Results
+
+| Command | Suite Description | Status |
 | :--- | :--- | :--- |
-| `create_task` | Creates a new task and evaluates triggered workflows | `title` (required), `description`, `priority` (`LOW`\|`MEDIUM`\|`HIGH`\|`URGENT`), `due_date` (ISO 8601), `project_id` |
-| `list_tasks` | Retrieves user tasks with safe pagination and filters | `status` (`TODO`\|`IN_PROGRESS`\|`DONE`), `priority`, `project_id`, `limit` (1-200) |
-| `update_task` | Modifies fields on an existing task with ownership validation | `task_id` (required), `title`, `description`, `status`, `priority`, `due_date`, `project_id` |
-| `complete_task` | Marks a task as `DONE` and records completion timestamp | `task_id` (required) |
-
-### Strict Tenant Security
-Every MCP connection enforces cryptographic JWT verification. Each session is bound to the authenticated user ID, strictly preventing cross-user data exposure or unauthorized mutations.
-
-### Connecting Claude Desktop or Cursor to TaskPilot MCP
-Add the following to your `claude_desktop_config.json` or MCP client configuration:
-```json
-{
-  "mcpServers": {
-    "taskpilot": {
-      "command": "npx",
-      "args": ["-y", "tsx", "c:/Users/asus/OneDrive/Desktop/ams/backend/src/mcp/stdio.ts"],
-      "env": {
-        "TASKPILOT_USER_EMAIL": "demo@taskpilot.ai"
-      }
-    }
-  }
-}
-```
+| `npm run test:unit` | Task bounds, rescheduling, date filtering, subtasks, tenant isolation, and MCP server instantiation | **PASS (9/9 tests)** |
+| `npm run test:reminders` | Smart reminders lifecycle, validation, auto task linking, scheduler idempotency, daily briefing, and assistant | **PASS (10/10 tests)** |
+| `npm run test:mcp` | Connects official MCP Client via Streamable HTTP SSE, discovers all 10 tools, executes every tool, verifies cross-user isolation, multi-turn assistant confirmation, and OAuth 2.1 PKCE S256 | **PASS (16/16 steps, 100%)** |
+| `npm run test:flows` | End-to-end API verification of auth, AI planner, workflows, and analytics | **PASS (8/8 flows)** |
+| `npm run build` | Compiles backend TypeScript (`tsc`) and builds frontend production bundle (`vite build`) | **PASS (0 errors)** |
+| `npm run lint` | Runs frontend fast linter (`oxlint`) | **PASS (0 errors)** |
 
 ---
 
-## 🏗️ Architecture & Technology Stack
-
-```
-ams/
-├── frontend/                     # React 19 + Vite + Lucide Icons + Canvas Confetti
-│   ├── src/
-│   │   ├── components/common/    # Reusable design system components (Button, Modal, Toast, Card, etc.)
-│   │   ├── context/              # AuthContext with session restoration
-│   │   ├── layouts/              # AppLayout (Persistent 240px Sidebar, Topbar, Search)
-│   │   ├── pages/                # 11 Redesigned Modules (Landing, Dashboard, Tasks, AI, etc.)
-│   │   ├── services/             # Centralized API service layer
-│   │   └── index.css             # Complete design system tokens & typography
-├── backend/                      # Node.js + Express + TypeScript Modular Monolith
-│   ├── src/
-│   │   ├── db/                   # SQLite relational storage (WAL mode, foreign keys, transactions)
-│   │   ├── mcp/                  # Official Model Context Protocol (MCP) server & SSE router
-│   │   ├── middleware/           # JWT Authentication & User Isolation
-│   │   ├── modules/              # Auth, Tasks, Projects, AI, Calendar, Notes, Workflows, Analytics, Settings
-│   │   ├── tests/                # Core unit & security test suite
-│   │   └── index.ts              # Server bootstrap & background overdue scanner
-├── tests/                        # Integration & automated flow test scripts
-└── package.json                  # Root runner scripts
-```
-
----
-
-## ⚡ Quick Start Guide
+## ⚡ Quick Start & Deployment Guide
 
 ### Prerequisites
 - Node.js (v18+ or v24+ recommended)
 - npm
 
-### 1. Install & Run Development Servers
+### 1. Setup Environment Variables
+Copy `.env.example` to `.env` in the `backend/` directory:
+```bash
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=taskpilot-super-secret-jwt-key-2026
+```
 
-**Option A — From Project Root:**
+### 2. Start Servers
+From the repository root:
 ```bash
 # Start backend on http://localhost:5000
 npm run start:backend
@@ -128,56 +150,29 @@ npm run start:backend
 npm run start:frontend
 ```
 
-**Option B — Independent Folders:**
-```bash
-# Backend
-cd backend
-npm install
-npm run dev
+### 3. Demo Account
+Navigate to `http://localhost:5173`:
+- Click **"Explore Demo Workspace"** or sign in with:
+  - **Email**: `demo@taskpilot.ai`
+  - **Password**: `demo12345`
 
-# Frontend
-cd frontend
-npm install
-npm run dev
+### 4. Public HTTPS Deployment for Hackathon Evaluators
+To expose the MCP server to external clients (e.g. Claude Desktop, Cursor, or external Alexa skills):
+```bash
+# Using Cloudflare Tunnel or ngrok:
+ngrok http 5000
+# Your public MCP Streamable HTTP endpoint:
+# https://<your-subdomain>.ngrok-free.app/mcp/sse?token=<jwt>
 ```
 
-### 2. Demo Credentials
-Open `http://localhost:5173` in your browser. Click **"Explore Demo Workspace"** or sign in with:
-- **Email**: `demo@taskpilot.ai`
-- **Password**: `demo12345`
-
 ---
 
-## 🧪 Automated Testing Suite
+## 🎥 Recording & Demonstration Checklist
 
-All tests can be executed with single commands from the repository root:
-
-| Command | Suite Description | Status |
-| :--- | :--- | :--- |
-| `npm run test:unit` | Validates input bounds, tenant isolation, and status transitions | **PASS (7/7 tests)** |
-| `npm run test:mcp` | Connects official MCP Client via SSE, calls all 4 tools, verifies SQLite persistence | **PASS (100% verified)** |
-| `npm run test:flows` | End-to-end API verification of auth, AI planner, workflows, and analytics | **PASS (8/8 flows)** |
-| `npm test` | Runs all 3 test suites sequentially | **PASS** |
-| `npm run build` | Compiles backend TypeScript (`tsc`) and builds frontend production bundle (`vite build`) | **PASS (0 errors)** |
-| `npm run lint` | Runs frontend fast linter (`oxlint`) | **PASS (0 errors)** |
-
----
-
-## 🎯 Hackathon Demonstration Steps
-
-1. **Sign In**: Navigate to `http://localhost:5173` and click **"Explore Demo Workspace"**.
-2. **Dashboard**: View real database KPI cards, overdue tasks, focus timer, and audit events.
-3. **AI Assistant & Goal Planner**:
-   - Go to `/ai`.
-   - Click prompt chip: *"Break down MCA Final Semester Project into 5 actionable milestones"*.
-   - Click **Generate Roadmap**.
-   - Review proposed tasks and click **"Approve & Commit to Workspace"**.
-4. **Task Verification**:
-   - Go to `/tasks`. Observe the freshly committed tasks.
-   - Click the checkmark on any task to trigger the celebration confetti animation.
-5. **Model Context Protocol (MCP)**:
-   - Run `npm run test:mcp` to watch an external MCP client connect to `/mcp/sse`, discover tools, create a task, list tasks, update priority to URGENT, and complete the task live.
-6. **Automation Engine**:
-   - Go to `/automation`.
-   - Trigger manual test on *Overdue Task Automated Reminder*.
-   - Inspect the **Execution History & Audit Trail** log showing instant execution.
+To record the 3-minute hackathon demo video:
+1. **Show MCP Server Connection**: Navigate to `/ai`, point out the green badge: `MCP Server: Connected (Streamable HTTP SSE) • 10 Tools`.
+2. **Execute Daily Briefing via Voice**: Tap the microphone or click prompt *"What do I need to finish today?"*. Point out the `get_daily_briefing` MCP tool execution chip and audio response.
+3. **Multi-Turn Smart Reminder**: Say *"Remind me to submit my assignment tomorrow at 9 AM"*. Note the confirmation prompt: *"Would you like me to save it?"*. Click or say *"Yes, save it"*. Show the reminder appear in the live cards.
+4. **Reschedule Task**: Say *"Reschedule urgent task to Friday"*. Watch `reschedule_task` execute over MCP and update the database.
+5. **Inspect MCP Tool Traces**: Click the tool execution chip to open the JSON-RPC trace showing transport, latency (ms), and exact returned payload.
+6. **Show Automated Test Suite**: Run `npm test` in the terminal to show all unit, reminder, MCP E2E (16 steps), and workflow tests passing with 100% success.

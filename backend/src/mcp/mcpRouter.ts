@@ -51,33 +51,69 @@ mcpRouter.get('/info', (_req: Request, res: Response) => {
   res.json({
     name: 'TaskPilot-AI-MCP-Server',
     version: '1.0.0',
-    specification: 'Model Context Protocol (MCP) 2024-11-05 / 1.32.1',
+    specification: 'Model Context Protocol (MCP) 2025-11-25 / SDK 1.32.1',
     supportedTransports: ['streamable-http-sse', 'stdio'],
     endpoints: {
       sse: '/mcp/sse',
       messages: '/mcp/messages?sessionId={id}',
+      info: '/mcp/info',
     },
     authentication: 'Bearer JWT token via Authorization header or ?token query param',
     tools: [
       {
-        name: 'create_task',
-        description: 'Create a new task with title, description, priority, and due date.',
-        parameters: ['title', 'description', 'priority', 'due_date', 'project_id'],
+        name: 'get_daily_briefing',
+        description: "Return today's tasks, upcoming deadlines, overdue tasks, and reminders.",
+        parameters: [],
       },
       {
         name: 'list_tasks',
-        description: 'List user tasks with filters for status, priority, and project.',
-        parameters: ['status', 'priority', 'project_id', 'limit'],
+        description: 'Retrieve tasks with filtering by date, status, and priority.',
+        parameters: ['date', 'status', 'priority', 'project_id', 'search', 'overdue', 'limit'],
       },
       {
-        name: 'update_task',
-        description: 'Update fields on an existing task.',
-        parameters: ['task_id', 'title', 'description', 'status', 'priority', 'due_date', 'project_id'],
+        name: 'create_task',
+        description: 'Create a task with a title, description, priority, and optional deadline.',
+        parameters: ['title', 'description', 'priority', 'due_date', 'project_id'],
+      },
+      {
+        name: 'create_reminder',
+        description: 'Create a persistent reminder for a specified date and time.',
+        parameters: ['task_id', 'task_title', 'reminder_time', 'reminder_type'],
       },
       {
         name: 'complete_task',
-        description: 'Mark a task as completed with completion timestamp.',
-        parameters: ['task_id'],
+        description: 'Mark a task as completed.',
+        parameters: ['task_id', 'task_title'],
+      },
+      {
+        name: 'reschedule_task',
+        description: "Change a task's due date or time.",
+        parameters: ['task_id', 'task_title', 'due_date'],
+      },
+      {
+        name: 'update_task',
+        description: 'Update task details or priority.',
+        parameters: ['task_id', 'title', 'description', 'status', 'priority', 'due_date', 'project_id'],
+      },
+      {
+        name: 'snooze_reminder',
+        description: 'Postpone a reminder by a specified duration.',
+        parameters: ['reminder_id', 'minutes'],
+      },
+      {
+        name: 'list_reminders',
+        description: 'Retrieve upcoming, completed, and overdue reminders.',
+        parameters: ['status', 'task_id', 'limit'],
+      },
+      {
+        name: 'delete_task',
+        description: 'Delete a task only after the requested operation has been clearly identified and validated.',
+        parameters: ['task_id', 'task_title', 'confirm'],
+      },
+      {
+        name: 'dismiss_reminder',
+        description: 'Dismiss an active reminder and clear associated notifications.',
+        parameters: ['reminder_id'],
       },
     ],
   });

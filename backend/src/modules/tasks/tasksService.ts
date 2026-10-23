@@ -37,6 +37,9 @@ export interface ListTasksInput {
   projectId?: string;
   search?: string;
   overdue?: boolean | string;
+  date?: string;
+  due_before?: string;
+  due_after?: string;
   limit?: number;
 }
 
@@ -45,7 +48,7 @@ export class TasksService {
    * List tasks for a given authenticated user with filters and safety limit.
    */
   static listTasks(input: ListTasksInput) {
-    const { userId, status, priority, projectId, search, overdue, limit } = input;
+    const { userId, status, priority, projectId, search, overdue, date, due_before, due_after, limit } = input;
     const safeLimit = limit && Number.isInteger(limit) && limit > 0 && limit <= 200 ? limit : 100;
 
     let query = `
@@ -76,6 +79,26 @@ export class TasksService {
     }
     if (overdue === true || overdue === 'true') {
       query += " AND t.due_date < datetime('now') AND t.status != 'DONE'";
+    }
+    if (date) {
+      if (date.toLowerCase() === 'today') {
+        query += " AND date(t.due_date) = date('now')";
+      } else if (date.toLowerCase() === 'tomorrow') {
+        query += " AND date(t.due_date) = date('now', '+1 day')";
+      } else {
+        // Assume YYYY-MM-DD or ISO string
+        const parsedDate = date.includes('T') ? date.split('T')[0] : date;
+        query += " AND date(t.due_date) = date(?)";
+        params.push(parsedDate);
+      }
+    }
+    if (due_before) {
+      query += " AND t.due_date <= ?";
+      params.push(due_before);
+    }
+    if (due_after) {
+      query += " AND t.due_date >= ?";
+      params.push(due_after);
     }
 
     query += " ORDER BY CASE t.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, t.due_date ASC, t.created_at DESC";
@@ -290,6 +313,21 @@ export class TasksService {
       userId,
       taskId,
       status: 'DONE',
+    });
+  }
+
+  /**
+   * Reschedule task due date.
+   */
+  static rescheduleTask(userId: string, taskId: string, newDueDate: string) {
+    if (!newDueDate || isNaN(Date.parse(newDueDate))) {
+      throw new Error('A valid ISO due date string is required to reschedule the task.');
+    }
+    const isoDate = new Date(newDueDate).toISOString();
+    return TasksService.updateTask({
+      userId,
+      taskId,
+      due_date: isoDate,
     });
   }
 

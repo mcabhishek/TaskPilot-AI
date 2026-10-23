@@ -16,7 +16,13 @@ import { notificationsRouter } from './modules/notifications/notificationsRoutes
 import { integrationsRouter } from './modules/integrations/integrationsRoutes.js';
 import { settingsRouter } from './modules/settings/settingsRoutes.js';
 import { mcpRouter } from './mcp/mcpRouter.js';
+import { remindersRouter } from './modules/reminders/remindersRoutes.js';
+import { briefingRouter } from './modules/briefing/briefingRoutes.js';
+import { assistantRouter } from './modules/assistant/assistantRoutes.js';
+import { mcpClientRouter } from './mcp/mcpClientRouter.js';
+import { oauthRouter } from './modules/auth/oauthRoutes.js';
 import { checkOverdueTasksAllUsers } from './modules/workflows/workflowEngine.js';
+import { RemindersService } from './modules/reminders/remindersService.js';
 
 dotenv.config();
 
@@ -59,9 +65,21 @@ app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/integrations', integrationsRouter);
 app.use('/api/v1/settings', settingsRouter);
 
+// Smart Reminders, Daily Briefings, and Alexa-Style Assistant routes
+app.use('/api/v1/reminders', remindersRouter);
+app.use('/api/v1/briefing', briefingRouter);
+app.use('/api/v1/assistant', assistantRouter);
+
 // Model Context Protocol (MCP) Streamable HTTP routes
 app.use('/mcp', mcpRouter);
 app.use('/api/v1/mcp', mcpRouter);
+
+// Official MCP Client Bridge & Simulator endpoints
+app.use('/api/v1/mcp-client', mcpClientRouter);
+
+// OAuth 2.1 RFC 8414 Metadata & Authorization Server endpoints (Alexa+ interoperability)
+app.use('/', oauthRouter);
+app.use('/oauth', oauthRouter);
 
 // Centralized error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -73,8 +91,21 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(PORT, () => {
   console.log(`🚀 TaskPilot AI Backend listening on http://localhost:${PORT}`);
   
+  // Background periodic scanner: runs every 15 seconds to deliver due reminders idempotently
+  setInterval(() => {
+    try {
+      RemindersService.processDueReminders();
+    } catch (err) {
+      console.error('Error running reminder scanner:', err);
+    }
+  }, 15000);
+
   // Background periodic scanner: runs every 60 seconds to detect overdue tasks and evaluate workflows
   setInterval(() => {
-    checkOverdueTasksAllUsers();
+    try {
+      checkOverdueTasksAllUsers();
+    } catch (err) {
+      console.error('Error running overdue workflow scanner:', err);
+    }
   }, 60000);
 });

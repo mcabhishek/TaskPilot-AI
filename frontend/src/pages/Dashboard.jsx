@@ -16,7 +16,12 @@ import {
   Zap,
   ArrowRight,
   Check,
-  Circle
+  Circle,
+  Volume2,
+  VolumeX,
+  Mic,
+  Bot,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -26,6 +31,7 @@ import { PriorityBadge, StatusBadge } from '../components/common/Badge';
 import { PrimaryButton, SecondaryButton } from '../components/common/Button';
 import { EmptyState } from '../components/common/EmptyState';
 import { useToast } from '../components/common/Toast';
+import { VoiceAssistantModal } from '../components/common/VoiceAssistantModal';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -34,19 +40,60 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Daily Briefing state
+  const [briefing, setBriefing] = useState(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [isSpeakingBriefing, setIsSpeakingBriefing] = useState(false);
+
+  // Alexa-style Voice Assistant Modal state
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+
   // Focus Timer
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
 
+  const fetchBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const b = await api.getDailyBriefing();
+      setBriefing(b);
+    } catch (err) {
+      console.error('Error fetching briefing:', err);
+    } finally {
+      setBriefingLoading(false);
+    }
+  };
+
   const fetchDashboard = async () => {
     try {
-      const res = await api.getDashboard();
+      const [res, b] = await Promise.all([api.getDashboard(), api.getDailyBriefing().catch(() => null)]);
       setData(res);
+      if (b) setBriefing(b);
     } catch (err) {
       console.error(err);
       toast.error('Failed to update dashboard metrics');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleSpeakBriefing = () => {
+    if (!briefing?.spoken_briefing || !window.speechSynthesis) {
+      toast.info('Speech playback is not supported in this browser environment.');
+      return;
+    }
+
+    if (isSpeakingBriefing) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingBriefing(false);
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(briefing.spoken_briefing);
+      utterance.rate = 1.05;
+      utterance.onend = () => setIsSpeakingBriefing(false);
+      utterance.onerror = () => setIsSpeakingBriefing(false);
+      setIsSpeakingBriefing(true);
+      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -142,11 +189,222 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <SecondaryButton
+            onClick={() => setIsVoiceModalOpen(true)}
+            icon={Mic}
+          >
+            Voice Assistant
+          </SecondaryButton>
           <PrimaryButton onClick={() => navigate('/tasks?action=new')} icon={Plus}>
             Create task
           </PrimaryButton>
         </div>
       </div>
+
+      {/* Daily Briefing Widget */}
+      {briefing && (
+        <div
+          style={{
+            backgroundColor: 'var(--surface-primary)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border)',
+            padding: '20px 24px',
+            marginBottom: '1.75rem',
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          {/* Subtle peach accent bar */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: 'linear-gradient(90deg, var(--primary-orange) 0%, #F59E0B 100%)',
+            }}
+          />
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 16,
+              flexWrap: 'wrap',
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--surface-peach)',
+                  color: 'var(--primary-orange)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'var(--primary-orange)',
+                  }}
+                >
+                  Daily Briefing & AI Strategy
+                </span>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: '2px 0 0' }}>
+                  {briefing.headline}
+                </h2>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={handleToggleSpeakBriefing}
+                className="btn-secondary"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  gap: 6,
+                  color: isSpeakingBriefing ? 'var(--primary-orange)' : 'var(--text-primary)',
+                  borderColor: isSpeakingBriefing ? 'var(--primary-orange)' : 'var(--border)',
+                }}
+                title="Listen to briefing speech"
+              >
+                {isSpeakingBriefing ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                <span>{isSpeakingBriefing ? 'Stop Audio' : 'Listen'}</span>
+              </button>
+
+              <button
+                onClick={fetchBriefing}
+                disabled={briefingLoading}
+                className="btn-icon"
+                title="Refresh briefing from database"
+                style={{ width: 34, height: 34 }}
+              >
+                <RefreshCw size={15} className={briefingLoading ? 'animate-spin' : ''} />
+              </button>
+
+              <button
+                onClick={() => setIsVoiceModalOpen(true)}
+                className="btn-primary"
+                style={{ padding: '6px 14px', fontSize: 12, gap: 6 }}
+              >
+                <Bot size={15} />
+                <span>Ask Alexa</span>
+              </button>
+            </div>
+          </div>
+
+          <p
+            style={{
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: 'var(--text-secondary)',
+              margin: '0 0 16px',
+            }}
+          >
+            {briefing.spoken_briefing}
+          </p>
+
+          {/* Recommended Priority Order */}
+          {briefing.recommended_order && briefing.recommended_order.length > 0 && (
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.04em',
+                  marginBottom: 8,
+                }}
+              >
+                Recommended Order of Execution
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {briefing.recommended_order.slice(0, 3).map((item, idx) => (
+                  <div
+                    key={item.task.id || idx}
+                    onClick={() => navigate('/tasks')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--surface-secondary)',
+                      border: '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--primary-orange)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        backgroundColor: idx === 0 ? 'var(--primary-orange)' : 'rgba(232, 117, 50, 0.15)',
+                        color: idx === 0 ? '#FFFFFF' : 'var(--primary-orange)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.rank}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {item.task.title}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        {item.reason}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4 Compact KPI Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
@@ -497,6 +755,15 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* Voice Assistant Modal */}
+      <VoiceAssistantModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => {
+          setIsVoiceModalOpen(false);
+          fetchDashboard();
+        }}
+      />
 
       <style>{`
         @media (max-width: 860px) {

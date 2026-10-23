@@ -101,6 +101,26 @@ export const api = {
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
   markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
 
+  // Smart Reminders
+  getReminders: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/reminders${qs ? `?${qs}` : ''}`);
+  },
+  createReminder: (data) => request('/reminders', { method: 'POST', body: JSON.stringify(data) }),
+  snoozeReminder: (id, minutes = 15) => request(`/reminders/${id}/snooze`, { method: 'POST', body: JSON.stringify({ minutes }) }),
+  dismissReminder: (id) => request(`/reminders/${id}/dismiss`, { method: 'POST' }),
+  deleteReminder: (id) => request(`/reminders/${id}`, { method: 'DELETE' }),
+  scanRemindersNow: () => request('/reminders/scan-now', { method: 'POST' }),
+
+  // Daily Briefing
+  getDailyBriefing: () => request('/briefing/today'),
+
+  // Alexa-Style Voice Assistant & Official MCP Client (Streamable HTTP SSE)
+  sendAssistantCommand: (text) => request('/mcp-client/assistant', { method: 'POST', body: JSON.stringify({ text }) }),
+  getMcpClientStatus: () => request('/mcp-client/status'),
+  callMcpTool: (tool, args = {}) => request('/mcp-client/call-tool', { method: 'POST', body: JSON.stringify({ tool, arguments: args }) }),
+  sendMcpAssistantCommand: (text) => request('/mcp-client/assistant', { method: 'POST', body: JSON.stringify({ text }) }),
+
   // Integrations
   getIntegrations: () => request('/integrations'),
   connectIntegration: (data) => request('/integrations/connect', { method: 'POST', body: JSON.stringify(data) }),

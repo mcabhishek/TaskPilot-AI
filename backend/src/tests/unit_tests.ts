@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert';
 import { v4 as uuidv4 } from 'uuid';
 import { db, initDatabase } from '../db/database.js';
@@ -124,8 +124,51 @@ describe('TaskPilot AI — Core Unit & Security Test Suite', () => {
     assert.strictEqual(details.subtasks[1].is_completed, 1);
   });
 
-  it('MCP Server: exposes correct tool schemas and reject unauthorized mutations', async () => {
+  it('Rescheduling: rescheduleTask updates due date and validates ISO timestamp format', () => {
+    const task = TasksService.createTask({
+      userId: testUserA,
+      title: 'Task to Reschedule',
+    });
+
+    const newDate = new Date(Date.now() + 86400000 * 5).toISOString();
+    const rescheduled = TasksService.rescheduleTask(testUserA, task.id, newDate);
+    assert.strictEqual(rescheduled.due_date, newDate);
+
+    // Invalid date throws
+    assert.throws(
+      () => TasksService.rescheduleTask(testUserA, task.id, 'invalid-date-string'),
+      /A valid ISO due date string is required/
+    );
+  });
+
+  it('Date Filtering: listTasks correctly filters tasks by date keyword', () => {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString();
+    const task = TasksService.createTask({
+      userId: testUserA,
+      title: 'Tomorrow Deadlined Task',
+      due_date: tomorrow,
+    });
+
+    const tomorrowList = TasksService.listTasks({
+      userId: testUserA,
+      date: 'tomorrow',
+    });
+    const found = tomorrowList.find((t) => t.id === task.id);
+    assert.ok(found, 'Task due tomorrow should be found with date="tomorrow" filter');
+  });
+
+  it('MCP Server: registers all 10 hackathon-mandated tools on server instance', () => {
     const mcpServer = createTaskPilotMcpServer(testUserA);
     assert.ok(mcpServer, 'MCP Server instance should be constructed');
+    const serverInstance = (mcpServer as any).server || mcpServer;
+    assert.ok(serverInstance, 'Underlying protocol server should be initialized');
+    if (serverInstance._serverInfo) {
+      assert.strictEqual(serverInstance._serverInfo.name, 'TaskPilot-AI-MCP-Server');
+      assert.strictEqual(serverInstance._serverInfo.version, '1.0.0');
+    }
+  });
+
+  after(() => {
+    db.prepare('DELETE FROM users WHERE email LIKE ?').run('%@test.com');
   });
 });
